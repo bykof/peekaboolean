@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="222" viewBox="0 0 760 222" font-family="system-ui,-apple-system,Segoe UI,sans-serif">
+<rect width="760" height="222" fill="#fcfcfb" rx="8"/>
+<text x="20" y="28" font-size="16" font-weight="600" fill="#0b0b0b">p95 latency, 6 questions / 28 options, M1 Pro (MPS), 512 px</text>
+<text x="20" y="46" font-size="12" fill="#52514e">log scale; Qwen shared-prefix value estimated from the measured CPU speedup</text>
+<line x1="220.0" x2="220.0" y1="56" y2="188" stroke="#e1e0d9"/>
+<text x="220.0" y="204" font-size="11" fill="#898781" text-anchor="middle">0.1 s</text>
+<line x1="280.2" x2="280.2" y1="56" y2="188" stroke="#e1e0d9"/>
+<text x="280.2" y="204" font-size="11" fill="#898781" text-anchor="middle">0.2 s</text>
+<line x1="359.7" x2="359.7" y1="56" y2="188" stroke="#e1e0d9"/>
+<text x="359.7" y="204" font-size="11" fill="#898781" text-anchor="middle">0.5 s</text>
+<line x1="419.9" x2="419.9" y1="56" y2="188" stroke="#e1e0d9"/>
+<text x="419.9" y="204" font-size="11" fill="#898781" text-anchor="middle">1 s</text>
+<line x1="480.1" x2="480.1" y1="56" y2="188" stroke="#e1e0d9"/>
+<text x="480.1" y="204" font-size="11" fill="#898781" text-anchor="middle">2 s</text>
+<line x1="559.6" x2="559.6" y1="56" y2="188" stroke="#e1e0d9"/>
+<text x="559.6" y="204" font-size="11" fill="#898781" text-anchor="middle">5 s</text>
+<line x1="619.8" x2="619.8" y1="56" y2="188" stroke="#e1e0d9"/>
+<text x="619.8" y="204" font-size="11" fill="#898781" text-anchor="middle">10 s</text>
+<line x1="680.0" x2="680.0" y1="56" y2="188" stroke="#e1e0d9"/>
+<text x="680.0" y="204" font-size="11" fill="#898781" text-anchor="middle">20 s</text>
+<line x1="359.7" x2="359.7" y1="56" y2="188" stroke="#52514e" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="363.7" y="60" font-size="11" fill="#52514e">500 ms budget</text>
+<text x="208" y="77" font-size="12.5" fill="#0b0b0b" text-anchor="end">SmolVLM-256M (v6)</text>
+<g><title>SmolVLM-256M (v6): ~230 ms</title><path d="M220.0,66.0 H288.3 A4,4 0 0 1 292.3,70.0 V76.0 A4,4 0 0 1 288.3,80.0 H220.0 Z" fill="#2a78d6"/></g>
+<text x="298.3" y="77" font-size="11.5" font-weight="600" fill="#0b0b0b">~230 ms</text>
+<text x="208" y="107" font-size="12.5" fill="#0b0b0b" text-anchor="end">SmolVLM-500M (v8b)</text>
+<g><title>SmolVLM-500M (v8b): ~390 ms</title><path d="M220.0,96.0 H334.2 A4,4 0 0 1 338.2,100.0 V106.0 A4,4 0 0 1 334.2,110.0 H220.0 Z" fill="#2a78d6"/></g>
+<text x="367.7" y="107" font-size="11.5" font-weight="600" fill="#0b0b0b">~390 ms</text>
+<text x="208" y="137" font-size="12.5" fill="#0b0b0b" text-anchor="end">Qwen3.5-0.8B, shared prefix</text>
+<g><title>Qwen3.5-0.8B, shared prefix: ~3000 ms</title><path d="M220.0,126.0 H511.3 A4,4 0 0 1 515.3,130.0 V136.0 A4,4 0 0 1 511.3,140.0 H220.0 Z" fill="#2a78d6"/></g>
+<text x="521.3" y="137" font-size="11.5" font-weight="600" fill="#0b0b0b">~3.0 s</text>
+<text x="208" y="167" font-size="12.5" fill="#0b0b0b" text-anchor="end">Qwen3.5-0.8B, one pass</text>
+<g><title>Qwen3.5-0.8B, one pass: ~10300 ms</title><path d="M220.0,156.0 H618.4 A4,4 0 0 1 622.4,160.0 V166.0 A4,4 0 0 1 618.4,170.0 H220.0 Z" fill="#2a78d6"/></g>
+<text x="628.4" y="167" font-size="11.5" font-weight="600" fill="#0b0b0b">~10.3 s</text>
+<line x1="220" x2="220" y1="56" y2="188" stroke="#c3c2b7"/>
+</svg>

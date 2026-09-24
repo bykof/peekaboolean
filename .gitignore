@@ -1,0 +1,8 @@
+# Large or generated: datasets, run outputs, environments, model caches
+data/
+runs/
+.venv/
+.cache/
+__pycache__/
+*.pyc
+*.deb

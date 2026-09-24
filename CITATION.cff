@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this software or its weights, please cite it as below."
+title: "peekaboolean: typed visual questions answered by scoring caller-supplied options"
+type: software
+authors:
+  - family-names: Bykovski
+    given-names: Michael
+version: 0.1.0
+date-released: 2026-09-25
+license: Apache-2.0
+repository-code: "https://github.com/bykof/peekaboolean"

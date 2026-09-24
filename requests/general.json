@@ -1,0 +1,29 @@
+{
+  "state": "Answer using only what is visible in the image.",
+  "questions": {
+    "kind": {
+      "type": "choice",
+      "instructions": "What kind of image is this?",
+      "criteria": {
+        "photo": "A photograph of a real scene",
+        "screenshot": "An application or website screenshot",
+        "document": "A scanned or photographed document page",
+        "chart": "A chart, graph, or diagram"
+      }
+    },
+    "sharpness": {
+      "type": "score",
+      "instructions": "How sharp is the image?",
+      "criteria": [
+        "very blurry",
+        "somewhat blurry",
+        "acceptable",
+        "sharp"
+      ]
+    },
+    "person_visible": {
+      "type": "noul",
+      "instructions": "Is a person visible in the image?"
+    }
+  }
+}
