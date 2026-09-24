@@ -21,7 +21,7 @@ never saw in training works as well as a familiar one.
   requests) plus public VQA data
 - Latency: about 400 ms p95 for a six-question request (28 options) on an M1 Pro
   (MPS, 512 px); about 60 ms on a desktop GPU
-- Weights: `bykof/peekaboolean-500m` (CC BY-NC 4.0, see [Licence](#licence))
+- Weights: [GitHub release v0.1.0](https://github.com/bykof/peekaboolean/releases/tag/v0.1.0) (CC BY-NC 4.0, see [Licence](#licence))
 
 How it was built and what did and did not work: [docs/REPORT.md](docs/REPORT.md).
 
@@ -30,19 +30,13 @@ How it was built and what did and did not work: [docs/REPORT.md](docs/REPORT.md)
 ```bash
 git clone https://github.com/bykof/peekaboolean && cd peekaboolean
 uv sync --python 3.13
-uv run python -m peekaboolean.serve --adapter bykof/peekaboolean-500m \
+curl -L https://github.com/bykof/peekaboolean/releases/download/v0.1.0/peekaboolean-500m.tar.gz | tar xz
+uv run python -m peekaboolean.serve --adapter peekaboolean-500m \
   --image photo.jpg --request requests/general.json --max-edge 512
 ```
 
-Without Hugging Face, take the same weights from the GitHub release:
-
-```bash
-curl -L https://github.com/bykof/peekaboolean/releases/download/v0.1.0/peekaboolean-500m.tar.gz | tar xz
-uv run python -m peekaboolean.serve --adapter peekaboolean-500m --image photo.jpg --request requests/general.json --max-edge 512
-```
-
-`--adapter` takes a Hub repo id or a local checkpoint directory. The base model and
-adapter download on first use. `--device` picks `cuda`, `mps` or `cpu` (default: auto).
+`--adapter` takes a local checkpoint directory or a Hugging Face repo id. The base model
+downloads on first use. `--device` picks `cuda`, `mps` or `cpu` (default: auto).
 
 A request (`requests/general.json`):
 
@@ -99,7 +93,7 @@ From Python, load once and reuse:
 
 ```python
 from peekaboolean.serve import load, evaluate
-model, processor, calibration = load("bykof/peekaboolean-500m", device="mps", merge=True)
+model, processor, calibration = load("peekaboolean-500m", device="mps", merge=True)
 result = evaluate(model, processor, state, questions, "photo.jpg", calibration, max_edge=512)
 ```
 
