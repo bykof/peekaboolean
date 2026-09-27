@@ -27,7 +27,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --ground: oklch(0.19 0.012 170); --panel: oklch(0.225 0.012 170); --label: oklch(0.27 0.014 170);
-    --frame: oklch(0.30 0.04 170); --frame-2: oklch(0.36 0.045 170);
+    --frame: oklch(0.38 0.06 170); --frame-2: oklch(0.44 0.065 170);
     --frame-ink: oklch(0.95 0.01 165); --frame-ink-2: oklch(0.78 0.02 165);
     --ink: oklch(0.93 0.008 165); --ink-2: oklch(0.72 0.012 165); --rule: oklch(0.36 0.015 170);
     --live: oklch(0.66 0.19 30); --live-ink: oklch(0.16 0.01 30); --error: oklch(0.75 0.14 30);
@@ -137,34 +137,33 @@ textarea.field { resize: none; field-sizing: content; }
 }
 
 .tabs { display: flex; gap: 6px; }
-.tab { cursor: pointer; background: none; color: var(--ink-2); transition: color 150ms var(--ease); }
-.tab:hover { color: var(--ink); }
-.tab[aria-selected="true"] { background: var(--label); color: var(--ink); }
+.tab { cursor: pointer; transition: background-color 150ms var(--ease), color 150ms var(--ease); }
+.tab:hover { background: color-mix(in oklab, var(--label), var(--ink) 6%); }
+.tab[aria-selected="true"] { background: var(--frame); color: var(--frame-ink); border-color: var(--frame); }
 .sortby { display: flex; align-items: center; gap: 8px; color: var(--ink-2); }
 .sortby select { height: 28px; padding: 0 8px; color: var(--ink); background: var(--label); border: 1px solid var(--rule); border-radius: var(--radius); font: inherit; text-transform: inherit; }
 
 .intake {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px;
-  padding: 20px 24px; background: var(--panel); border: 1px solid var(--rule); border-top: 6px solid var(--frame); border-radius: 4px;
+  padding: 20px 24px; background: var(--panel); border: 1px solid var(--rule); border-top: 6px solid var(--frame); border-radius: 0 0 4px 4px;
 }
-.intake h2 { font-size: 1.35rem; font-weight: 600; line-height: 1.25; }
+.intake-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.say { font-size: 1.35rem; font-weight: 600; line-height: 1.25; }
 .intake p { margin-top: 4px; color: var(--ink-2); }
 .intake-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .quiet { margin-top: 16px; color: var(--ink-2); }
 
 .case {
   margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1px; background: var(--frame); border: 6px solid var(--frame); border-radius: 4px;
+  gap: 1px; background: var(--panel); border: 6px solid var(--frame); border-radius: 4px;
 }
-.bin { display: grid; grid-template-rows: subgrid; grid-row: span 2; row-gap: 0; min-width: 0; }
+.bin { display: grid; grid-template-rows: subgrid; grid-row: span 2; row-gap: 0; min-width: 0; outline: 1px solid var(--frame); }
 .bin-label { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: start; gap: 2px 8px; padding: 8px 10px; background: var(--label); border-bottom: 1px solid var(--rule); }
 .bin-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lvl { font-weight: 500; color: var(--ink-2); }
 .count { text-align: right; }
 .bin-desc { grid-column: 1 / -1; font-size: .75rem; line-height: 1.4; color: var(--ink-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .bin-interior { min-height: 120px; background: var(--panel); }
-.returned .bin-name { display: flex; align-items: center; gap: 6px; }
-.returned .bin-name, .returned .count { color: var(--error); }
 .count.flash { animation: flash 600ms var(--ease); }
 @keyframes flash { 0%, 50% { color: var(--live); } }
 
@@ -176,7 +175,8 @@ body.dragging #frame { outline: 2px solid var(--live); outline-offset: -2px; }
 
 .intake.filled { display: block; padding: 0; border-bottom: 0; overflow: hidden; }
 .intake-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px 10px 16px; }
-.intake-bar h2 { flex: 1 1 auto; font-size: 1.125rem; margin-right: 8px; }
+.intake-bar .intake-title { flex: 1 1 auto; margin-right: 8px; }
+.intake-bar .say { font-size: 1.125rem; }
 .unsorted { border-top: 1px solid var(--rule); }
 .tray-head { display: flex; gap: 8px; padding: 8px 16px 0; color: var(--ink-2); }
 .tray { max-height: 240px; overflow-y: auto; }
@@ -190,6 +190,19 @@ body.dragging #frame { outline: 2px solid var(--live); outline-offset: -2px; }
 .thumb:hover img { outline: 1px solid var(--ink-2); outline-offset: 1px; }
 .thumb[data-status=running] img { outline: 2px solid var(--live); outline-offset: 1px; }
 .thumb:not([data-status=done]) .gauge { visibility: hidden; }
+.note { display: none; }
+
+.returned { margin-top: 16px; background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; }
+.returned-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; background: var(--label); border-bottom: 1px solid var(--rule); border-radius: 4px 4px 0 0; }
+.returned .plate { display: inline-flex; align-items: center; gap: 6px; color: var(--error); }
+.returned .count { color: var(--error); }
+.returned .thumbs { grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 8px 16px; }
+.returned .thumb { flex-direction: row; align-items: center; gap: 10px; text-align: left; }
+.returned .thumb img { width: 48px; }
+.returned .gauge { display: none; }
+.returned .note { display: grid; min-width: 0; font-size: .8125rem; }
+.note-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-err { color: var(--error); }
 
 .manifest { flex: 1; margin-top: 16px; overflow: auto; background: var(--label); border: 1px solid var(--rule); border-radius: 4px; }
 .manifest table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .8125rem; }
@@ -218,6 +231,7 @@ body.dragging #frame { outline: 2px solid var(--live); outline-offset: -2px; }
 .docket-head h2 { flex: 1; min-width: 0; font-size: .9375rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .docket-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 400px); gap: 24px; padding: 16px; }
 #docket-img { display: block; width: 100%; height: auto; max-height: 75vh; object-fit: contain; background: var(--panel); border: 1px solid var(--rule); border-radius: 2px; }
+.docket-body:has(> #docket-img[hidden]) { grid-template-columns: 1fr; }
 .answers { display: grid; align-content: start; gap: 20px; }
 .instr { margin: 6px 0 10px; color: var(--ink-2); }
 .opts { display: grid; gap: 6px; }
@@ -232,6 +246,8 @@ body.dragging #frame { outline: 2px solid var(--live); outline-offset: -2px; }
 :root { view-transition-name: none; }
 ::view-transition { pointer-events: none; }
 ::view-transition-group(*) { animation-duration: 200ms; animation-timing-function: var(--ease); }
+.bar { view-transition-name: header; }
+::view-transition-group(header) { z-index: 1; }
 @media (prefers-reduced-motion: reduce) { .axis::before { transition: none; } }
 
 @media (min-width: 900px) {
@@ -239,13 +255,13 @@ body.dragging #frame { outline: 2px solid var(--live); outline-offset: -2px; }
   #frame-body[data-view=manifest], #frame-body[data-view=manifest] > #view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .manifest { min-height: 160px; }
 }
-#frame-body[data-view=manifest] .unsorted { display: none; }
+#frame-body[data-view=manifest] :is(.unsorted, .returned) { display: none; }
 
 @media (max-width: 899px) {
   body { height: auto; min-height: 100dvh; }
   main { grid-template-columns: 1fr; }
   .scheme, #frame { overflow: visible; }
-  .scheme { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .scheme { border-right: 0; border-top: 1px solid var(--rule); }
   .bar { flex-wrap: wrap; row-gap: 4px; padding: 10px 16px; }
   .wordmark { flex: 1; }
   #sort { order: 1; }
@@ -256,6 +272,11 @@ body.dragging #frame { outline: 2px solid var(--live); outline-offset: -2px; }
   #json { min-height: 60dvh; }
   .manifest { max-height: 80dvh; }
   .docket-body { grid-template-columns: 1fr; }
+}
+@media (max-width: 599px) {
+  .open { flex-direction: column; align-items: stretch; gap: 4px; width: 64px; }
+  .open img { width: 64px; height: 64px; }
+  .open span { direction: rtl; text-align: left; }
 }
 </style>
 </head>
@@ -323,6 +344,13 @@ body.dragging #frame { outline: 2px solid var(--live); outline-offset: -2px; }
     <div id="frame-body" role="tabpanel" aria-labelledby="frame-h">
       <div id="frame-banner"></div>
       <div id="intake" class="intake"></div>
+      <section id="returned" class="returned" aria-labelledby="returned-h" hidden>
+        <div class="returned-head">
+          <h2 class="plate" id="returned-h"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"></use></svg>Return to sender</h2>
+          <span class="count" id="returned-count"></span>
+        </div>
+        <div class="thumbs" id="returned-thumbs"></div>
+      </section>
       <div id="view"></div>
     </div>
   </section>
@@ -336,7 +364,6 @@ body.dragging #frame { outline: 2px solid var(--live); outline-offset: -2px; }
     <button type="button" class="btn icon-btn tool" id="docket-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
   </div>
   <div class="docket-body">
-    <img id="docket-img" alt="">
     <div class="answers" id="docket-answers"></div>
   </div>
   <div class="docket-foot">
@@ -659,7 +686,8 @@ document.addEventListener('keydown', e => {
 });
 
 const IMAGE = /\.(jpe?g|png|webp|gif|bmp|tiff?)$/i;
-const frameBanner = $('frame-banner'), schemeBanner = $('scheme-banner'), intakeEl = $('intake'), viewEl = $('view'), docket = $('docket');
+const frameBanner = $('frame-banner'), schemeBanner = $('scheme-banner'), intakeEl = $('intake'), viewEl = $('view'), docket = $('docket'),
+      returnedEl = $('returned'), returnedThumbs = $('returned-thumbs'), returnedCount = $('returned-count');
 const axisEl = h('div', { class: 'axis' }), trayEl = h('div', { class: 'thumbs tray' }), trayCount = h('span', { class: 'count' });
 const unsortedEl = h('div', { class: 'unsorted' }, h('p', { class: 'tray-head' }, 'Unsorted', trayCount), trayEl);
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -667,8 +695,9 @@ const unbroken = e => { e.target.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAA
 
 let images = [];
 let nextId = 0, pasted = 0, dragDepth = 0;
-let run = null;          // { stop: boolean } while sorting
+let run = null;          // { stop, abort } while sorting
 let sortedRequest = null; // the typed request the current results belong to
+let unexported = false;   // the last sort's results have not been exported yet
 let docketImg = null, opener = null, copyTimer;
 
 function banner(message, host = frameBanner) {
@@ -680,7 +709,8 @@ function record(file, path, key) {
   const img = { id: ++nextId, key, file, path, url: URL.createObjectURL(file), status: 'pending', result: null, error: null, thumb: null };
   img.thumb = h('button', { type: 'button', class: 'thumb', title: path, onclick: () => openDocket(img) },
     h('img', { alt: '', loading: 'lazy', decoding: 'async', src: img.url, onerror: unbroken }),
-    h('span', { class: 'gauge win' }));
+    h('span', { class: 'gauge win' }),
+    h('span', { class: 'note' }, h('span', { class: 'note-path' }, path), h('span', { class: 'note-err' })));
   return img;
 }
 
@@ -715,8 +745,12 @@ function clear() {
 }
 
 function filesFromDrop(dataTransfer) {  // must be called synchronously inside the drop handler
-  const entries = [...dataTransfer.items].map(item => item.webkitGetAsEntry?.()).filter(Boolean);
-  const out = [];
+  const entries = [], out = [];
+  for (const item of dataTransfer.items) {  // no entry: e.g. an image dragged out of a web page
+    const entry = item.webkitGetAsEntry?.(), file = entry ? null : item.getAsFile();
+    if (entry) entries.push(entry);
+    else if (file) out.push({ file, path: file.name });
+  }
   const walk = async entry => {
     if (entry.isFile) {
       const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
@@ -745,8 +779,8 @@ async function loadJsonFile(file) {
 
 function setDragging(on) {
   document.body.classList.toggle('dragging', on);
-  const heading = intakeEl.querySelector('h2');
-  heading.textContent = on ? 'Release to add' : heading.dataset.text;
+  const say = intakeEl.querySelector('.say');
+  say.textContent = on ? 'Release to add' : say.dataset.text;
 }
 
 const dragsFiles = e => e.dataTransfer?.types.includes('Files');
@@ -802,7 +836,8 @@ function fill(el, list) {
 
 function renderIntake() {
   const focused = document.activeElement?.closest?.('#intake [data-action]')?.dataset.action;
-  const heading = text => h('h2', { dataset: { text } }, dragDepth ? 'Release to add' : text);
+  const heading = text => h('div', { class: 'intake-title' }, h('h2', { class: 'plate' }, 'Intake'),
+    h('span', { class: 'say', dataset: { text } }, dragDepth ? 'Release to add' : text));
   const pick = (action, name, label, id) => h('button', { type: 'button', class: 'btn secondary', id, dataset: { action } }, icon(name), label);
   intakeEl.className = images.length ? 'intake filled' : 'intake';
   if (!images.length) intakeEl.replaceChildren(
@@ -852,8 +887,8 @@ function setRunning(on) {
   sortBtn.querySelector('span').textContent = on ? 'Sorting…' : 'Sort';
   stopBtn.hidden = !on;
   stopBtn.querySelector('span').textContent = 'Stop';
-  if (on && active === sortBtn) stopBtn.focus();
-  if (!on && active === stopBtn) sortBtn.focus();
+  if (on && active === sortBtn) stopBtn.focus({ preventScroll: true });
+  if (!on && active === stopBtn) sortBtn.focus({ preventScroll: true });
   progress();
   setStatus(summary());
 }
@@ -862,7 +897,9 @@ async function runSort(request) {
   if (run || !images.length) return;
   run = { stop: false, abort: new AbortController() };
   sortedRequest = request;
+  unexported = true;
   frameBanner.replaceChildren();
+  schemeBanner.replaceChildren();
   for (const img of images) Object.assign(img, { status: 'pending', result: null, error: null });
   setRunning(true);
   renderAll();
@@ -886,7 +923,12 @@ async function runSort(request) {
       }
       if (run.abort.signal.aborted) { img.status = 'pending'; break; }
       if (res.ok) Object.assign(img, { status: 'done', result: body });
-      else if (body.scope === 'request') { img.status = 'pending'; banner(`The model rejected the request: ${body.error}`); break; }
+      else if (body.scope === 'request') {
+        img.status = 'pending';
+        banner(`The model rejected the request: ${body.error}`, schemeBanner);
+        schemeBanner.scrollIntoView({ block: 'nearest' });
+        break;
+      }
       else Object.assign(img, { status: 'error', error: body.error });
       placeItem(img);
     }
@@ -932,7 +974,7 @@ function strength(answer, key) {  // probability of the bin the image landed in
 
 function withTransition(fn) {
   // ponytail: one view-transition name per thumb; above ~400 images the snapshot cost outweighs the motion, so it is skipped
-  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches || images.length > 400) return fn();
+  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches || images.length > 400 || docket.open) return fn();
   document.startViewTransition(fn).ready.catch(() => {});
 }
 
@@ -948,8 +990,9 @@ function flash(el) {
   el.classList.add('flash');
 }
 
+const returned = () => images.filter(i => i.status === 'error');
+
 function members(q, name, key) {
-  if (key == null) return images.filter(i => i.status === 'error');
   return images.filter(i => i.status === 'done' && binOf(q, i.result.answers?.[name]) === key)
     .sort((a, b) => strength(b.result.answers[name], key) - strength(a.result.answers[name], key));
 }
@@ -959,7 +1002,10 @@ function updateThumb(img) {
   let label = img.path;
   t.dataset.status = img.status;
   if (img.status === 'running') label += ': sorting';
-  else if (img.status === 'error') label += `: ${img.error}`;
+  else if (img.status === 'error') {
+    label += `: ${img.error}`;
+    t.querySelector('.note-err').textContent = img.error;
+  }
   else if (img.status === 'done' && q && img.result.answers?.[name]) {
     const a = img.result.answers[name], key = binOf(q, a), s = strength(a, key);
     t.style.setProperty('--p', s);
@@ -969,12 +1015,11 @@ function updateThumb(img) {
 }
 
 function binEl(q, b, list) {
-  const el = h('div', { class: b ? 'bin' : 'bin returned', dataset: b && { key: b.key } },
+  const el = h('div', { class: 'bin', dataset: { key: b.key } },
     h('div', { class: 'bin-label' },
-      b ? h('span', { class: 'bin-name', title: b.label }, q.type === 'score' ? [h('span', { class: 'lvl' }, `L${b.key}`), ' ', b.label] : b.label)
-        : h('span', { class: 'bin-name' }, icon('triangle-alert'), 'Return to sender'),
+      h('span', { class: 'bin-name', title: b.label }, q.type === 'score' ? [h('span', { class: 'lvl' }, `L${b.key}`), ' ', b.label] : b.label),
       h('span', { class: 'count' }),
-      b && q.type !== 'score' && b.description ? h('p', { class: 'bin-desc', title: b.description }, b.description) : null),
+      q.type !== 'score' && b.description ? h('p', { class: 'bin-desc', title: b.description }, b.description) : null),
     h('div', { class: 'bin-interior thumbs' }));
   fillBin(el, list);
   return el;
@@ -989,8 +1034,15 @@ function fillBin(el, list) {
 function caseView(q, name) {
   const list = q ? bins(q) : [];
   if (!list.length) return h('p', { class: 'quiet' }, q ? 'Add options to see the bins' : 'Add a question to see the bins');
-  const returned = members(q, name, null);
-  return h('div', { class: 'case' }, list.map(b => binEl(q, b, members(q, name, b.key))), returned.length ? binEl(q, null, returned) : null);
+  return h('div', { class: 'case' }, list.map(b => binEl(q, b, members(q, name, b.key))));
+}
+
+function renderReturned() {
+  const list = returned();
+  fill(returnedThumbs, list);
+  list.forEach(updateThumb);
+  returnedCount.textContent = list.length;
+  returnedEl.hidden = !list.length;
 }
 
 function answerCell(q, a) {
@@ -1027,7 +1079,7 @@ function manifest(req, names) {
       h('th', { scope: 'col', class: 'num' }, 'ms'))),
     h('tbody', null, images.map(img => (img.row = h('tr', null,
       h('th', { scope: 'row' }, h('button', { type: 'button', class: 'open', title: img.path, onclick: () => openDocket(img, true) },
-        h('img', { alt: '', loading: 'lazy', decoding: 'async', src: img.url, onerror: unbroken }), h('span', null, img.path))),
+        h('img', { alt: '', loading: 'lazy', decoding: 'async', src: img.url, onerror: unbroken }), h('span', null, h('bdi', null, img.path)))),
       cells(img, req, names)))))));
 }
 
@@ -1046,17 +1098,18 @@ function updateItem(img) {
 }
 
 function placeItem(img) {
+  // ponytail: members(), fill() and nameThumbs() walk every image per result (~30 ms at 3000 images);
+  // batch placements per animation frame, or insert only the landing thumb, if folders get that large
   updateItem(img);
   if (docket.open && docketImg === img) fillDocket(img);
   const name = frameState.sortBy, q = sortedRequest?.questions[name];
   if (frameState.view !== 'frame' || !q) { img.thumb.remove(); renderTray(); return; }
   const key = img.status === 'done' ? binOf(q, img.result.answers?.[name]) : null;
-  const list = members(q, name, key);
+  const list = key == null ? returned() : members(q, name, key);
   nameThumbs(list.slice(list.indexOf(img)));
   withTransition(() => {
-    const caseEl = viewEl.querySelector('.case');
-    let bin = caseEl && [...caseEl.children].find(b => (key == null ? b.classList.contains('returned') : b.dataset.key === key));
-    if (caseEl && !bin && key == null) caseEl.append(bin = binEl(q, null, []));
+    if (key == null) { renderReturned(); flash(returnedCount); }
+    const bin = key != null && [...(viewEl.querySelector('.case')?.children ?? [])].find(b => b.dataset.key === key);
     if (bin) { fillBin(bin, members(q, name, key)); flash(bin.querySelector('.count')); }
     renderTray();
   });
@@ -1071,6 +1124,7 @@ function renderFrame() {
   $('stale').hidden = !sortedRequest || JSON.stringify(current) === JSON.stringify(sortedRequest);
   frameBody.dataset.view = frameState.view;
   viewEl.replaceChildren(frameState.view === 'frame' ? caseView(req.questions[frameState.sortBy], frameState.sortBy) : manifest(req, names));
+  if (frameState.view === 'frame') renderReturned();
 }
 
 function renderAll() {
@@ -1113,7 +1167,7 @@ function fillDocket(img) {
   const copy = $('docket-copy');
   docketImg = img;
   $('docket-path').textContent = img.path;
-  $('docket-img').src = img.url;
+  Object.assign($('docket-img'), { hidden: false, src: img.url });
   $('docket-answers').replaceChildren(...answersFor(img));
   clearTimeout(copyTimer);
   copy.querySelector('span').textContent = 'Copy JSON';
@@ -1130,7 +1184,7 @@ const step = d => fillDocket(images[(images.indexOf(docketImg) + d + images.leng
 $('docket-prev').addEventListener('click', () => step(-1));
 $('docket-next').addEventListener('click', () => step(1));
 $('docket-close').addEventListener('click', () => docket.close());
-$('docket-img').addEventListener('error', e => e.target.removeAttribute('src'));
+docket.querySelector('.docket-body').prepend(h('img', { id: 'docket-img', alt: '', hidden: true, onerror: e => { e.target.hidden = true; } }));
 docket.addEventListener('keydown', e => {
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
   e.preventDefault();
@@ -1162,7 +1216,9 @@ $('export').addEventListener('click', () => {
     download: `peekaboolean-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json` });
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href));
+  unexported = false;
 });
+addEventListener('beforeunload', e => { if (run || (unexported && images.some(i => i.result))) e.preventDefault(); });
 
 function selectTab(tab) {
   for (const t of tabs) {
@@ -1181,6 +1237,15 @@ tabs[0].parentElement.addEventListener('keydown', e => {
   selectTab(t);
   t.focus();
 });
+
+const narrow = matchMedia('(max-width: 899px)'), mainEl = document.querySelector('main');
+function order() {  // the frame moves above the scheme in the DOM, not just visually, so Tab follows what is seen
+  const focused = document.activeElement;
+  mainEl.prepend(narrow.matches ? $('frame') : mainEl.querySelector('.scheme'));
+  focused?.focus({ preventScroll: true });
+}
+narrow.addEventListener('change', order);
+order();
 
 if (!isMac) $('sort').querySelector('kbd').textContent = 'Ctrl↵';
 
