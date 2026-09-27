@@ -676,8 +676,8 @@ function banner(message, host = frameBanner) {
     h('button', { type: 'button', class: 'btn icon-btn tool', 'aria-label': 'Dismiss', onclick: () => host.replaceChildren() }, icon('x'))));
 }
 
-function record(file, path) {
-  const img = { id: ++nextId, file, path, url: URL.createObjectURL(file), status: 'pending', result: null, error: null, thumb: null };
+function record(file, path, key) {
+  const img = { id: ++nextId, key, file, path, url: URL.createObjectURL(file), status: 'pending', result: null, error: null, thumb: null };
   img.thumb = h('button', { type: 'button', class: 'thumb', title: path, onclick: () => openDocket(img) },
     h('img', { alt: '', loading: 'lazy', decoding: 'async', src: img.url, onerror: unbroken }),
     h('span', { class: 'gauge win' }));
@@ -685,7 +685,7 @@ function record(file, path) {
 }
 
 function addFiles(list) {
-  const seen = new Set(images.map(i => `${i.path}|${i.file.size}|${i.file.lastModified}`));
+  const seen = new Set(images.map(i => i.key)), used = new Set(images.map(i => i.path));
   let added = 0, skipped = 0;
   for (const { file, path } of list) {
     const parts = path.split('/');
@@ -693,7 +693,11 @@ function addFiles(list) {
     const key = `${path}|${file.size}|${file.lastModified}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    images.push(record(file, path));
+    const dot = path.lastIndexOf('.');
+    let unique = path;
+    for (let n = 2; used.has(unique); n++) unique = `${path.slice(0, dot)} (${n})${path.slice(dot)}`;
+    used.add(unique);
+    images.push(record(file, unique, key));
     added++;
   }
   images.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }));
@@ -856,37 +860,42 @@ function setRunning(on) {
 
 async function runSort(request) {
   if (run || !images.length) return;
-  run = { stop: false };
+  run = { stop: false, abort: new AbortController() };
   sortedRequest = request;
   frameBanner.replaceChildren();
   for (const img of images) Object.assign(img, { status: 'pending', result: null, error: null });
   setRunning(true);
   renderAll();
-  for (const img of [...images]) {
-    if (run.stop) break;
-    img.status = 'running';
-    updateItem(img);
-    let image;
-    try { image = await base64(img.file); }
-    catch (e) { Object.assign(img, { status: 'error', error: `Could not read the file: ${e.message}` }); placeItem(img); continue; }
-    let res, body;
-    try {
-      res = await fetch('/api/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                         body: JSON.stringify({ ...request, image }) });
-      body = await res.json().catch(() => ({ error: `HTTP ${res.status}`, scope: 'server' }));
-    } catch (e) {
-      img.status = 'pending';
-      banner(`Lost the server (${e.message}). Is peekaboolean.ui still running?`);
-      break;
+  try {
+    for (const img of [...images]) {
+      if (run.stop) break;
+      img.status = 'running';
+      updateItem(img);
+      let image;
+      try { image = await base64(img.file); }
+      catch (e) { Object.assign(img, { status: 'error', error: `Could not read the file: ${e.message}` }); placeItem(img); continue; }
+      let res, body;
+      try {
+        res = await fetch('/api/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                           body: JSON.stringify({ ...request, image }), signal: run.abort.signal });
+        body = await res.json().catch(() => ({ error: `HTTP ${res.status}`, scope: 'server' }));
+      } catch (e) {
+        img.status = 'pending';
+        if (!run.abort.signal.aborted) banner(`Lost the server (${e.message}). Is peekaboolean.ui still running?`);
+        break;
+      }
+      if (run.abort.signal.aborted) { img.status = 'pending'; break; }
+      if (res.ok) Object.assign(img, { status: 'done', result: body });
+      else if (body.scope === 'request') { img.status = 'pending'; banner(`The model rejected the request: ${body.error}`); break; }
+      else Object.assign(img, { status: 'error', error: body.error });
+      placeItem(img);
     }
-    if (res.ok) Object.assign(img, { status: 'done', result: body });
-    else if (body.scope === 'request') { img.status = 'pending'; banner(`The model rejected the request: ${body.error}`); break; }
-    else Object.assign(img, { status: 'error', error: body.error });
-    placeItem(img);
+  } finally {
+    for (const img of images) if (img.status === 'running') img.status = 'pending';
+    run = null;
+    setRunning(false);
+    renderAll();
   }
-  run = null;
-  setRunning(false);
-  renderAll();
 }
 
 function base64(file) {
@@ -905,6 +914,7 @@ document.addEventListener('sort', e => {
 $('stop').addEventListener('click', () => {
   if (!run) return;
   run.stop = true;
+  run.abort.abort();
   $('stop').querySelector('span').textContent = 'Stopping…';
 });
 
