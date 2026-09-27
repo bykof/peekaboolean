@@ -47,11 +47,11 @@ body {
 }
 ::selection { background: color-mix(in oklch, var(--live) 28%, transparent); }
 :focus-visible { outline: 2px solid var(--live); outline-offset: 2px; }
-h1, h2, p, ol { margin: 0; }
+h1, h2, h3, p, ol { margin: 0; }
 button, input, textarea, select { font: inherit; color: inherit; letter-spacing: inherit; }
 ::placeholder { color: var(--ink-2); opacity: 1; }
 
-.plate, .btn, .lbl, .seg label, .seg button, .sortby, .q-name, .bin-name, .count {
+.plate, .btn, .lbl, .seg label, .seg button, .sortby, .q-name, .bin-name, .count, .tray-head, .manifest thead th, .ans {
   font-stretch: 68%; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.75rem;
 }
 .plate { display: inline-block; padding: 2px 8px; background: var(--label); color: var(--ink); border: 1px solid var(--rule); border-radius: 2px; }
@@ -67,7 +67,7 @@ button, input, textarea, select { font: inherit; color: inherit; letter-spacing:
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .primary { background: var(--live); color: var(--live-ink); }
-.primary:hover { background: color-mix(in oklab, var(--live), var(--ink) 14%); }
+.primary:hover:not(:disabled) { background: color-mix(in oklab, var(--live), var(--ink) 14%); }
 .secondary { background: var(--label); color: var(--ink); border-color: var(--rule); }
 .secondary:hover:not(:disabled) { background: color-mix(in oklab, var(--label), var(--ink) 6%); }
 .ghost { color: var(--frame-ink); }
@@ -76,12 +76,13 @@ button, input, textarea, select { font: inherit; color: inherit; letter-spacing:
 kbd { font: inherit; line-height: 16px; padding: 0 4px; border: 1px solid color-mix(in oklch, var(--live-ink) 45%, transparent); border-radius: 2px; }
 
 .gauge {
-  position: relative; height: 6px;
+  display: block; position: relative; height: 6px;
   background: repeating-linear-gradient(to right, var(--rule) 0 1px, transparent 1px 10%);
   border-bottom: 1px solid var(--rule); border-right: 1px solid var(--rule);
 }
 .gauge::before { content: ""; position: absolute; inset: 0 auto 0 0; width: calc(var(--p, 0) * 100%); background: var(--ink-2); }
 .gauge.win::before { background: var(--ink); }
+.gauge.marker::before { width: 2px; left: clamp(0px, calc(var(--p, 0) * 100% - 1px), calc(100% - 2px)); background: var(--ink); }
 
 .bar { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 16px; background: var(--frame); color: var(--frame-ink); }
 .wordmark { display: flex; align-items: center; gap: 8px; margin-right: 8px; font-size: 1.35rem; font-weight: 700; font-stretch: 62%; line-height: 1; }
@@ -121,8 +122,8 @@ textarea.field { resize: none; field-sizing: content; }
   background-image: repeating-linear-gradient(to bottom, transparent 0 calc(1.6em - 1px), var(--rule) calc(1.6em - 1px) 1.6em);
   background-attachment: local; background-origin: content-box; background-repeat: no-repeat;
 }
-.del { color: var(--ink-2); }
-.del:hover { color: var(--ink); background: var(--panel); }
+.del, .tool { color: var(--ink-2); }
+.del:hover, .tool:hover { color: var(--ink); background: var(--panel); }
 .cap { display: flex; justify-content: space-between; gap: 8px; font-size: .8125rem; color: var(--ink-2); }
 .field-error { display: flex; align-items: flex-start; gap: 6px; font-size: .8125rem; color: var(--error); }
 .field-error .icon { margin-top: 2px; }
@@ -162,6 +163,83 @@ textarea.field { resize: none; field-sizing: content; }
 .count { text-align: right; }
 .bin-desc { grid-column: 1 / -1; font-size: .75rem; line-height: 1.4; color: var(--ink-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .bin-interior { min-height: 120px; background: var(--panel); }
+.returned .bin-name { display: flex; align-items: center; gap: 6px; }
+.returned .bin-name, .returned .count { color: var(--error); }
+.count.flash { animation: flash 600ms var(--ease); }
+@keyframes flash { 0%, 50% { color: var(--live); } }
+
+#frame .zone-head { flex-wrap: wrap; }
+.stale { margin-left: auto; font-size: .8125rem; color: var(--ink-2); }
+body.dragging #frame { outline: 2px solid var(--live); outline-offset: -2px; }
+.banner { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 4px 4px 4px 12px; font-size: .8125rem; color: var(--error); background: var(--label); border: 1px solid var(--rule); border-radius: var(--radius); }
+.banner span { flex: 1; min-width: 0; }
+
+.intake.filled { display: block; padding: 0; border-bottom: 0; overflow: hidden; }
+.intake-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px 10px 16px; }
+.intake-bar h2 { flex: 1 1 auto; font-size: 1.125rem; margin-right: 8px; }
+.unsorted { border-top: 1px solid var(--rule); }
+.tray-head { display: flex; gap: 8px; padding: 8px 16px 0; color: var(--ink-2); }
+.tray { max-height: 240px; overflow-y: auto; }
+.axis { height: 3px; background: var(--rule); }
+.axis::before { content: ""; display: block; height: 100%; width: calc(var(--p, 0) * 100%); background: var(--ink); transition: width 250ms var(--ease); }
+.intake.running .axis::before { background: var(--live); }
+
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); align-content: start; gap: 6px; padding: 8px; }
+.thumb { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 0; border: 0; border-radius: 2px; background: none; cursor: pointer; }
+.thumb img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 2px; background: var(--rule); }
+.thumb:hover img { outline: 1px solid var(--ink-2); outline-offset: 1px; }
+.thumb[data-status=running] img { outline: 2px solid var(--live); outline-offset: 1px; }
+.thumb:not([data-status=done]) .gauge { visibility: hidden; }
+
+.manifest { flex: 1; margin-top: 16px; overflow: auto; background: var(--label); border: 1px solid var(--rule); border-radius: 4px; }
+.manifest table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .8125rem; }
+.manifest th, .manifest td { padding: 8px 12px; text-align: left; vertical-align: middle; white-space: nowrap; border-bottom: 1px solid var(--rule); }
+.manifest thead th { position: sticky; top: 0; z-index: 1; padding-block: 6px; vertical-align: bottom; background: var(--panel); }
+.manifest tbody th { font-weight: 400; }
+.manifest tbody tr:last-child > * { border-bottom: 0; }
+.manifest .num { text-align: right; }
+.qt { display: block; font-stretch: 100%; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--ink-2); }
+.open { display: flex; align-items: center; gap: 10px; max-width: 280px; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; }
+.open img { width: 48px; height: 48px; flex: none; object-fit: cover; border-radius: 2px; background: var(--rule); }
+.open span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.open:hover span { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.cell { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px 12px; min-width: 156px; }
+.cell .gauge { grid-column: 1 / -1; }
+.ans { overflow: hidden; text-overflow: ellipsis; }
+.dim { color: var(--ink-2); }
+.manifest .run { color: var(--live); }
+.manifest .err { color: var(--error); white-space: normal; }
+.err-line { display: flex; align-items: flex-start; gap: 6px; }
+.err-line .icon { margin-top: 1px; }
+
+#docket { width: calc(100% - 32px); max-width: 1100px; padding: 0; color: var(--ink); background: var(--ground); border: 1px solid var(--rule); border-radius: 4px; }
+#docket::backdrop { background: color-mix(in oklch, var(--frame) 55%, transparent); }
+.docket-head { display: flex; align-items: center; gap: 4px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--rule); }
+.docket-head h2 { flex: 1; min-width: 0; font-size: .9375rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.docket-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 400px); gap: 24px; padding: 16px; }
+#docket-img { display: block; width: 100%; height: auto; max-height: 75vh; object-fit: contain; background: var(--panel); border: 1px solid var(--rule); border-radius: 2px; }
+.answers { display: grid; align-content: start; gap: 20px; }
+.instr { margin: 6px 0 10px; color: var(--ink-2); }
+.opts { display: grid; gap: 6px; }
+.opt { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 5ch; align-items: center; gap: 12px; font-size: .8125rem; color: var(--ink-2); }
+.opt > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opt .gauge { height: 8px; }
+.opt .val { text-align: right; }
+.opt.win { color: var(--ink); font-weight: 650; }
+.meta { margin-top: 8px; font-size: .8125rem; color: var(--ink-2); }
+.docket-foot { display: flex; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid var(--rule); }
+
+:root { view-transition-name: none; }
+::view-transition { pointer-events: none; }
+::view-transition-group(*) { animation-duration: 200ms; animation-timing-function: var(--ease); }
+@media (prefers-reduced-motion: reduce) { .axis::before { transition: none; } }
+
+@media (min-width: 900px) {
+  #frame { display: flex; flex-direction: column; }
+  #frame-body[data-view=manifest], #frame-body[data-view=manifest] > #view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .manifest { min-height: 160px; }
+}
+#frame-body[data-view=manifest] .unsorted { display: none; }
 
 @media (max-width: 899px) {
   body { height: auto; min-height: 100dvh; }
@@ -176,6 +254,8 @@ textarea.field { resize: none; field-sizing: content; }
   #frame { padding: 16px; }
   .case { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
   #json { min-height: 60dvh; }
+  .manifest { max-height: 80dvh; }
+  .docket-body { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -204,9 +284,9 @@ textarea.field { resize: none; field-sizing: content; }
   </h1>
   <span id="info"></span>
   <output id="status" aria-live="polite"></output>
-  <button type="button" class="btn ghost" id="stop" hidden><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg>Stop</button>
+  <button type="button" class="btn ghost" id="stop" hidden><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg><span>Stop</span></button>
   <button type="button" class="btn ghost" id="export" disabled><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>Export JSON</button>
-  <button type="button" class="btn primary" id="sort" aria-keyshortcuts="Meta+Enter Control+Enter"><svg class="icon" aria-hidden="true"><use href="#i-arrow-down-to-line"></use></svg>Sort<kbd aria-hidden="true">⌘↵</kbd></button>
+  <button type="button" class="btn primary" id="sort" aria-keyshortcuts="Meta+Enter Control+Enter"><svg class="icon" aria-hidden="true"><use href="#i-arrow-down-to-line"></use></svg><span>Sort</span><kbd aria-hidden="true">⌘↵</kbd></button>
 </header>
 
 <main>
@@ -218,6 +298,7 @@ textarea.field { resize: none; field-sizing: content; }
         <button type="button" id="view-json" aria-pressed="false">JSON</button>
       </div>
     </div>
+    <div id="scheme-banner"></div>
     <div id="scheme-form">
       <label class="lbl" for="state">Context</label>
       <textarea class="field context" id="state" rows="2" placeholder="Answer using only what is visible in the image."></textarea>
@@ -236,13 +317,34 @@ textarea.field { resize: none; field-sizing: content; }
         <button type="button" class="plate tab" role="tab" id="frame-h" aria-selected="true" aria-controls="frame-body" data-view="frame">Frame</button>
         <button type="button" class="plate tab" role="tab" aria-selected="false" aria-controls="frame-body" data-view="manifest" tabindex="-1">Manifest</button>
       </div>
+      <span class="stale" id="stale" hidden>Scheme changed since this sort</span>
       <label class="sortby" id="sort-by-label">Sort by <select id="sort-by"></select></label>
     </div>
-    <div id="frame-body" role="tabpanel" aria-labelledby="frame-h"></div>
+    <div id="frame-body" role="tabpanel" aria-labelledby="frame-h">
+      <div id="frame-banner"></div>
+      <div id="intake" class="intake"></div>
+      <div id="view"></div>
+    </div>
   </section>
 </main>
 
-<dialog id="docket"></dialog>
+<dialog id="docket" aria-labelledby="docket-path">
+  <div class="docket-head">
+    <h2 id="docket-path"></h2>
+    <button type="button" class="btn icon-btn tool" id="docket-prev" aria-label="Previous image"><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg></button>
+    <button type="button" class="btn icon-btn tool" id="docket-next" aria-label="Next image"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+    <button type="button" class="btn icon-btn tool" id="docket-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+  </div>
+  <div class="docket-body">
+    <img id="docket-img" alt="">
+    <div class="answers" id="docket-answers"></div>
+  </div>
+  <div class="docket-foot">
+    <button type="button" class="btn secondary" id="docket-copy"><svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span>Copy JSON</span></button>
+  </div>
+</dialog>
+<input type="file" id="pick-folder" webkitdirectory multiple hidden>
+<input type="file" id="pick-images" accept="image/*" multiple hidden>
 
 <script type="module">
 const DEFAULT_REQUEST = {
@@ -556,39 +658,501 @@ document.addEventListener('keydown', e => {
   if (!e.repeat) requestSort();
 });
 
-function intake() {
-  return h('div', { class: 'intake' },
-    h('div', null,
-      h('h2', null, 'Drop a folder or images'),
-      h('p', null, `or paste with ${isMac ? '⌘V' : 'Ctrl+V'} · JPEG, PNG, WebP, GIF, BMP, TIFF · nothing leaves this machine`)),
-    h('div', { class: 'intake-actions' },
-      h('button', { type: 'button', class: 'btn secondary', id: 'choose-folder' }, icon('folder-open'), 'Choose folder'),
-      h('button', { type: 'button', class: 'btn secondary', id: 'choose-images' }, icon('images'), 'Choose images')));
+const IMAGE = /\.(jpe?g|png|webp|gif|bmp|tiff?)$/i;
+const frameBanner = $('frame-banner'), schemeBanner = $('scheme-banner'), intakeEl = $('intake'), viewEl = $('view'), docket = $('docket');
+const axisEl = h('div', { class: 'axis' }), trayEl = h('div', { class: 'thumbs tray' }), trayCount = h('span', { class: 'count' });
+const unsortedEl = h('div', { class: 'unsorted' }, h('p', { class: 'tray-head' }, 'Unsorted', trayCount), trayEl);
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const unbroken = e => e.target.removeAttribute('src');
+
+let images = [];
+let nextId = 0, pasted = 0, dragDepth = 0;
+let run = null;          // { stop: boolean } while sorting
+let sortedRequest = null; // the typed request the current results belong to
+let docketImg = null, opener = null, copyTimer;
+
+function banner(message, host = frameBanner) {
+  host.replaceChildren(h('div', { class: 'banner', role: 'alert' }, icon('triangle-alert'), h('span', null, message),
+    h('button', { type: 'button', class: 'btn icon-btn tool', 'aria-label': 'Dismiss', onclick: () => host.replaceChildren() }, icon('x'))));
 }
 
-function caseView(q) {
+function record(file, path) {
+  const img = { id: ++nextId, file, path, url: URL.createObjectURL(file), status: 'pending', result: null, error: null, thumb: null };
+  img.thumb = h('button', { type: 'button', class: 'thumb', title: path, onclick: () => openDocket(img) },
+    h('img', { alt: '', loading: 'lazy', decoding: 'async', src: img.url, onerror: unbroken }),
+    h('span', { class: 'gauge win' }));
+  return img;
+}
+
+function addFiles(list) {
+  const seen = new Set(images.map(i => `${i.path}|${i.file.size}|${i.file.lastModified}`));
+  let added = 0, skipped = 0;
+  for (const { file, path } of list) {
+    const parts = path.split('/');
+    if (!IMAGE.test(parts.at(-1)) || parts.some(p => p.startsWith('.'))) { skipped++; continue; }
+    const key = `${path}|${file.size}|${file.lastModified}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    images.push(record(file, path));
+    added++;
+  }
+  images.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }));
+  setStatus(`Added ${plural(added, 'image')}${skipped ? ` · skipped ${plural(skipped, 'other file')}` : ''}`);
+  renderAll();
+}
+
+function clear() {
+  for (const img of images) URL.revokeObjectURL(img.url);
+  images = [];
+  sortedRequest = null;
+  setStatus('');
+  renderAll();
+  $('choose-folder').focus();
+}
+
+function filesFromDrop(dataTransfer) {  // must be called synchronously inside the drop handler
+  const entries = [...dataTransfer.items].map(item => item.webkitGetAsEntry?.()).filter(Boolean);
+  const out = [];
+  const walk = async entry => {
+    if (entry.isFile) {
+      const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+      out.push({ file, path: entry.fullPath.replace(/^\//, '') });
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      for (;;) {  // readEntries hands out at most ~100 entries per call; an empty batch means done
+        const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+        if (!batch.length) break;
+        for (const child of batch) await walk(child);
+      }
+    }
+  };
+  return (async () => { for (const entry of entries) await walk(entry); return out; })();
+}
+
+async function loadJsonFile(file) {
+  try {
+    loadRequest(JSON.parse(await file.text()));
+    schemeBanner.replaceChildren();
+    if (jsonView) { jsonEl.value = jsonShown = JSON.stringify(buildRequest().request, null, 2); showJsonError(null); }
+  } catch (e) {
+    banner(`Could not load ${file.name}: ${e instanceof SyntaxError ? `not valid JSON (${e.message})` : e.message}`, schemeBanner);
+  }
+}
+
+function setDragging(on) {
+  document.body.classList.toggle('dragging', on);
+  const heading = intakeEl.querySelector('h2');
+  heading.textContent = on ? 'Release to add' : heading.dataset.text;
+}
+
+const dragsFiles = e => e.dataTransfer?.types.includes('Files');
+addEventListener('dragenter', e => { if (dragsFiles(e) && dragDepth++ === 0) setDragging(true); });
+addEventListener('dragleave', e => {
+  if (!dragsFiles(e) || !dragDepth) return;
+  if (--dragDepth === 0) setDragging(false);
+});
+addEventListener('dragover', e => { if (dragsFiles(e)) e.preventDefault(); });
+addEventListener('drop', e => {
+  if (!dragsFiles(e)) return;
+  e.preventDefault();
+  dragDepth = 0;
+  setDragging(false);
+  const files = [...e.dataTransfer.files];
+  if (files.length === 1 && /\.json$/i.test(files[0].name)) return loadJsonFile(files[0]);
+  filesFromDrop(e.dataTransfer).then(addFiles, err => banner(`Could not read the dropped files: ${err.message}`));
+});
+
+document.addEventListener('paste', e => {
+  const files = [...(e.clipboardData?.files ?? [])].filter(f => f.type.startsWith('image/'));
+  if (!files.length) return;
+  e.preventDefault();
+  addFiles(files.map(file => ({ file, path: `pasted-${++pasted}.${file.type.slice(6)}` })));
+});
+
+$('pick-folder').addEventListener('change', e => {
+  addFiles([...e.target.files].map(file => ({ file, path: file.webkitRelativePath || file.name })));
+  e.target.value = '';
+});
+$('pick-images').addEventListener('change', e => {
+  addFiles([...e.target.files].map(file => ({ file, path: file.name })));
+  e.target.value = '';
+});
+intakeEl.addEventListener('click', e => {
+  const action = e.target.closest('[data-action]')?.dataset.action;
+  if (action === 'folder') $('pick-folder').click();
+  else if (action === 'images') $('pick-images').click();
+  else if (action === 'clear') clear();
+});
+
+function move(parent, node, before) {
+  const focused = document.activeElement === node;
+  parent.insertBefore(node, before);
+  if (focused) node.focus({ preventScroll: true });
+}
+
+function fill(el, list) {
+  const want = new Set(list.map(i => i.thumb));
+  for (const child of [...el.children]) if (!want.has(child)) child.remove();
+  list.forEach((img, i) => { if (el.children[i] !== img.thumb) move(el, img.thumb, el.children[i] ?? null); });
+}
+
+function renderIntake() {
+  const focused = document.activeElement?.closest?.('#intake [data-action]')?.dataset.action;
+  const heading = text => h('h2', { dataset: { text } }, dragDepth ? 'Release to add' : text);
+  const pick = (action, name, label, id) => h('button', { type: 'button', class: 'btn secondary', id, dataset: { action } }, icon(name), label);
+  intakeEl.className = images.length ? 'intake filled' : 'intake';
+  if (!images.length) intakeEl.replaceChildren(
+    h('div', null,
+      heading('Drop a folder or images'),
+      h('p', null, `or paste with ${isMac ? '⌘V' : 'Ctrl+V'} · JPEG, PNG, WebP, GIF, BMP, TIFF · nothing leaves this machine`)),
+    h('div', { class: 'intake-actions' },
+      pick('folder', 'folder-open', 'Choose folder', 'choose-folder'), pick('images', 'images', 'Choose images', 'choose-images')));
+  else intakeEl.replaceChildren(
+    h('div', { class: 'intake-bar' },
+      heading(plural(images.length, 'image')),
+      pick('folder', 'folder-open', 'Add folder'), pick('images', 'images', 'Add images'),
+      h('button', { type: 'button', class: 'btn secondary', dataset: { action: 'clear' }, disabled: !!run }, icon('x'), 'Clear')),
+    unsortedEl, axisEl);
+  renderTray();
+  if (focused) intakeEl.querySelector(`[data-action=${focused}]`)?.focus();
+}
+
+function renderTray() {
+  const list = images.filter(i => i.status === 'pending' || i.status === 'running');
+  fill(trayEl, list);
+  list.forEach(updateThumb);
+  trayCount.textContent = list.length;
+  unsortedEl.hidden = !list.length;
+}
+
+function summary() {
+  const finished = images.filter(i => i.status === 'done' || i.status === 'error');
+  const secs = finished.filter(i => i.result).map(i => i.result.usage?.seconds ?? 0);
+  const avg = secs.length ? ` · ${Math.round(secs.reduce((a, b) => a + b, 0) / secs.length * 1000)} ms each` : '';
+  if (run) return `Sorting ${finished.length} / ${images.length}${avg}`;
+  const of = finished.length < images.length ? ` / ${images.length}` : '';
+  return `Sorted ${finished.length}${of} · ${finished.length - secs.length} returned${avg}`;
+}
+
+function progress() {
+  const finished = images.filter(i => i.status === 'done' || i.status === 'error').length;
+  axisEl.style.setProperty('--p', images.length ? finished / images.length : 0);
+  intakeEl.classList.toggle('running', !!run);
+  $('export').disabled = !images.some(i => i.result);
+  if (run) setStatus(summary());
+}
+
+function setRunning(on) {
+  const sortBtn = $('sort'), stopBtn = $('stop'), active = document.activeElement;
+  sortBtn.disabled = on;
+  sortBtn.querySelector('span').textContent = on ? 'Sorting…' : 'Sort';
+  stopBtn.hidden = !on;
+  stopBtn.querySelector('span').textContent = 'Stop';
+  if (on && active === sortBtn) stopBtn.focus();
+  if (!on && active === stopBtn) sortBtn.focus();
+  progress();
+  setStatus(summary());
+}
+
+async function runSort(request) {
+  if (run || !images.length) return;
+  run = { stop: false };
+  sortedRequest = request;
+  frameBanner.replaceChildren();
+  for (const img of images) Object.assign(img, { status: 'pending', result: null, error: null });
+  setRunning(true);
+  renderAll();
+  for (const img of [...images]) {
+    if (run.stop) break;
+    img.status = 'running';
+    updateItem(img);
+    let image;
+    try { image = await base64(img.file); }
+    catch (e) { Object.assign(img, { status: 'error', error: `Could not read the file: ${e.message}` }); placeItem(img); continue; }
+    let res, body;
+    try {
+      res = await fetch('/api/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                         body: JSON.stringify({ ...request, image }) });
+      body = await res.json().catch(() => ({ error: `HTTP ${res.status}`, scope: 'server' }));
+    } catch (e) {
+      img.status = 'pending';
+      banner(`Lost the server (${e.message}). Is peekaboolean.ui still running?`);
+      break;
+    }
+    if (res.ok) Object.assign(img, { status: 'done', result: body });
+    else if (body.scope === 'request') { img.status = 'pending'; banner(`The model rejected the request: ${body.error}`); break; }
+    else Object.assign(img, { status: 'error', error: body.error });
+    placeItem(img);
+  }
+  run = null;
+  setRunning(false);
+  renderAll();
+}
+
+function base64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.slice(reader.result.indexOf(',') + 1));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+document.addEventListener('sort', e => {
+  if (!images.length) { setStatus('Add images first'); $('choose-folder').focus(); return; }
+  runSort(e.detail);
+});
+$('stop').addEventListener('click', () => {
+  if (!run) return;
+  run.stop = true;
+  $('stop').querySelector('span').textContent = 'Stopping…';
+});
+
+function binOf(question, answer) {
+  if (!answer) return null;
+  if (answer.type === 'choice') return answer.choice;
+  if (answer.type === 'score') return String(Math.min(question.criteria.length - 1, Math.max(0, Math.round(answer.score))));
+  return answer.noul >= 0.5 ? 'yes' : 'no';
+}
+
+function strength(answer, key) {  // probability of the bin the image landed in
+  if (answer.type === 'noul') return key === 'yes' ? answer.noul : 1 - answer.noul;
+  return answer.probabilities[key];
+}
+
+function withTransition(fn) {
+  // ponytail: one view-transition name per thumb; above ~400 images the snapshot cost outweighs the motion, so it is skipped
+  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches || images.length > 400) return fn();
+  document.startViewTransition(fn).ready.catch(() => {});
+}
+
+function nameThumbs(moving) {
+  const on = new Set(moving);
+  for (const img of images) img.thumb.style.viewTransitionName = on.has(img) ? `t${img.id}` : 'none';
+}
+
+function flash(el) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+}
+
+function members(q, name, key) {
+  if (key == null) return images.filter(i => i.status === 'error');
+  return images.filter(i => i.status === 'done' && binOf(q, i.result.answers?.[name]) === key)
+    .sort((a, b) => strength(b.result.answers[name], key) - strength(a.result.answers[name], key));
+}
+
+function updateThumb(img) {
+  const t = img.thumb, name = frameState.sortBy, q = sortedRequest?.questions[name];
+  let label = img.path;
+  t.dataset.status = img.status;
+  if (img.status === 'running') label += ': sorting';
+  else if (img.status === 'error') label += `: ${img.error}`;
+  else if (img.status === 'done' && q && img.result.answers?.[name]) {
+    const a = img.result.answers[name], key = binOf(q, a), s = strength(a, key);
+    t.style.setProperty('--p', s);
+    label += `: ${bins(q).find(b => b.key === key)?.label ?? key} ${Math.round(s * 100)}%`;
+  }
+  t.setAttribute('aria-label', label);
+}
+
+function binEl(q, b, list) {
+  const el = h('div', { class: b ? 'bin' : 'bin returned', dataset: b && { key: b.key } },
+    h('div', { class: 'bin-label' },
+      b ? h('span', { class: 'bin-name', title: b.label }, q.type === 'score' ? [h('span', { class: 'lvl' }, `L${b.key}`), ' ', b.label] : b.label)
+        : h('span', { class: 'bin-name' }, icon('triangle-alert'), 'Return to sender'),
+      h('span', { class: 'count' }),
+      b && q.type !== 'score' && b.description ? h('p', { class: 'bin-desc', title: b.description }, b.description) : null),
+    h('div', { class: 'bin-interior thumbs' }));
+  fillBin(el, list);
+  return el;
+}
+
+function fillBin(el, list) {
+  fill(el.lastElementChild, list);
+  list.forEach(updateThumb);
+  el.querySelector('.count').textContent = list.length;
+}
+
+function caseView(q, name) {
   const list = q ? bins(q) : [];
   if (!list.length) return h('p', { class: 'quiet' }, q ? 'Add options to see the bins' : 'Add a question to see the bins');
-  return h('div', { class: 'case' }, list.map(b => h('div', { class: 'bin', dataset: { key: b.key } },
-    h('div', { class: 'bin-label' },
-      h('span', { class: 'bin-name', title: b.label }, q.type === 'score' ? [h('span', { class: 'lvl' }, `L${b.key}`), ' ', b.label] : b.label),
-      h('span', { class: 'count' }, '0'),
-      q.type !== 'score' && b.description ? h('p', { class: 'bin-desc', title: b.description }, b.description) : null),
-    h('div', { class: 'bin-interior' }))));
+  const returned = members(q, name, null);
+  return h('div', { class: 'case' }, list.map(b => binEl(q, b, members(q, name, b.key))), returned.length ? binEl(q, null, returned) : null);
+}
+
+function answerCell(q, a) {
+  if (!a) return h('td', { class: 'dim' }, '—');
+  const key = binOf(q, a), label = bins(q).find(b => b.key === key)?.label ?? key;
+  let value, gauge;
+  if (a.type === 'score') {
+    const top = Math.max(1, q.criteria.length - 1);
+    value = `${a.score.toFixed(2)} / ${top}`;
+    gauge = h('span', { class: 'gauge marker', style: { '--p': a.score / top } });
+  } else {
+    const p = a.type === 'choice' ? a.probabilities[a.choice] : a.noul;
+    value = p.toFixed(2);
+    gauge = h('span', { class: a.type === 'choice' || key === 'yes' ? 'gauge win' : 'gauge', style: { '--p': p } });
+  }
+  return h('td', null, h('div', { class: 'cell' }, h('span', { class: 'ans', title: label }, label), h('span', null, value), gauge));
+}
+
+function cells(img, req, names) {
+  const ms = img.result ? h('td', { class: 'num' }, String(Math.round((img.result.usage?.seconds ?? 0) * 1000))) : h('td', { class: 'num dim' }, '—');
+  if (img.status === 'error')
+    return [h('td', { class: 'err', colspan: names.length || 1 }, h('span', { class: 'err-line' }, icon('triangle-alert'), img.error)), ms];
+  if (img.status === 'running') return [h('td', { class: 'run', colspan: names.length || 1 }, 'sorting…'), ms];
+  if (!img.result) return [...names.map(() => h('td', { class: 'dim' }, '—')), ms];
+  return [...names.map(n => answerCell(req.questions[n], img.result.answers?.[n])), ms];
+}
+
+function manifest(req, names) {
+  if (!images.length) return h('p', { class: 'quiet' }, 'Nothing sorted yet');
+  return h('div', { class: 'manifest' }, h('table', null,
+    h('thead', null, h('tr', null,
+      h('th', { scope: 'col' }, 'Image'),
+      names.map(n => h('th', { scope: 'col' }, n, h('span', { class: 'qt' }, TYPE_LABEL[req.questions[n].type]))),
+      h('th', { scope: 'col', class: 'num' }, 'ms'))),
+    h('tbody', null, images.map(img => (img.row = h('tr', null,
+      h('th', { scope: 'row' }, h('button', { type: 'button', class: 'open', title: img.path, onclick: () => openDocket(img, true) },
+        h('img', { alt: '', loading: 'lazy', decoding: 'async', src: img.url, onerror: unbroken }), h('span', null, img.path))),
+      cells(img, req, names)))))));
+}
+
+function updateRow(img) {
+  const row = img.row;
+  if (frameState.view !== 'manifest' || !row?.isConnected) return;
+  const req = sortedRequest ?? buildRequest().request;
+  while (row.children.length > 1) row.lastElementChild.remove();
+  row.append(...cells(img, req, Object.keys(req.questions)));
+}
+
+function updateItem(img) {
+  updateThumb(img);
+  updateRow(img);
+  progress();
+}
+
+function placeItem(img) {
+  updateItem(img);
+  if (docket.open && docketImg === img) fillDocket(img);
+  const name = frameState.sortBy, q = sortedRequest?.questions[name];
+  if (frameState.view !== 'frame' || !q) { img.thumb.remove(); renderTray(); return; }
+  const key = img.status === 'done' ? binOf(q, img.result.answers?.[name]) : null;
+  const list = members(q, name, key);
+  nameThumbs(list.slice(list.indexOf(img)));
+  withTransition(() => {
+    const caseEl = viewEl.querySelector('.case');
+    let bin = caseEl && [...caseEl.children].find(b => (key == null ? b.classList.contains('returned') : b.dataset.key === key));
+    if (caseEl && !bin && key == null) caseEl.append(bin = binEl(q, null, []));
+    if (bin) { fillBin(bin, members(q, name, key)); flash(bin.querySelector('.count')); }
+    renderTray();
+  });
 }
 
 function renderFrame() {
-  const { request } = buildRequest();
-  const names = Object.keys(request.questions);
+  const current = buildRequest().request, req = sortedRequest ?? current;
+  const names = Object.keys(req.questions);
   if (!names.includes(frameState.sortBy)) frameState.sortBy = names[0] ?? null;
   sortByEl.replaceChildren(...names.map(n => h('option', { value: n, selected: n === frameState.sortBy }, n)));
   $('sort-by-label').hidden = frameState.view !== 'frame' || !names.length;
-  frameBody.replaceChildren(intake(), frameState.view === 'frame'
-    ? caseView(request.questions[frameState.sortBy])
-    : h('p', { class: 'quiet' }, 'Nothing sorted yet'));
+  $('stale').hidden = !sortedRequest || JSON.stringify(current) === JSON.stringify(sortedRequest);
+  frameBody.dataset.view = frameState.view;
+  viewEl.replaceChildren(frameState.view === 'frame' ? caseView(req.questions[frameState.sortBy], frameState.sortBy) : manifest(req, names));
 }
 
-sortByEl.addEventListener('change', () => { frameState.sortBy = sortByEl.value; renderFrame(); });
+function renderAll() {
+  renderIntake();
+  renderFrame();
+  progress();
+}
+
+sortByEl.addEventListener('change', () => {
+  frameState.sortBy = sortByEl.value;
+  nameThumbs(images.filter(i => i.status === 'done' || i.status === 'error'));
+  withTransition(renderFrame);
+});
+
+function answersFor(img) {
+  if (img.status === 'error') return [h('p', { class: 'field-error' }, icon('triangle-alert'), img.error)];
+  if (!img.result) return [h('p', { class: 'dim' }, img.status === 'running' ? 'Sorting…' : 'Not sorted yet')];
+  const req = sortedRequest;
+  return Object.entries(req.questions).map(([name, q]) => {
+    const a = img.result.answers?.[name];
+    if (!a) return null;
+    const win = binOf(q, a);
+    const meta = a.type === 'score' ? `expected ${a.score.toFixed(2)} of ${q.criteria.length - 1} · confidence ${a.confidence.toFixed(3)}`
+      : a.type === 'choice' ? `confidence ${a.confidence.toFixed(3)}` : null;
+    return h('section', null,
+      h('h3', { class: 'plate' }, name),
+      h('p', { class: 'instr' }, toText(q.instructions)),
+      h('div', { class: 'opts' }, bins(q).map(b => {
+        const p = strength(a, b.key) ?? 0;
+        return h('div', { class: b.key === win ? 'opt win' : 'opt' },
+          h('span', { title: b.label }, b.label),
+          h('span', { class: b.key === win ? 'gauge win' : 'gauge', style: { '--p': p } }),
+          h('span', { class: 'val' }, p.toFixed(3)));
+      })),
+      meta && h('p', { class: 'meta' }, meta));
+  });
+}
+
+function fillDocket(img) {
+  const copy = $('docket-copy');
+  docketImg = img;
+  $('docket-path').textContent = img.path;
+  $('docket-img').src = img.url;
+  $('docket-answers').replaceChildren(...answersFor(img));
+  clearTimeout(copyTimer);
+  copy.querySelector('span').textContent = 'Copy JSON';
+  copy.disabled = !img.result;
+}
+
+function openDocket(img, fromRow = false) {
+  opener = { img, fromRow };
+  fillDocket(img);
+  if (!docket.open) docket.showModal();
+}
+
+const step = d => fillDocket(images[(images.indexOf(docketImg) + d + images.length) % images.length]);
+$('docket-prev').addEventListener('click', () => step(-1));
+$('docket-next').addEventListener('click', () => step(1));
+$('docket-close').addEventListener('click', () => docket.close());
+$('docket-img').addEventListener('error', unbroken);
+docket.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  e.preventDefault();
+  step(e.key === 'ArrowLeft' ? -1 : 1);
+});
+docket.addEventListener('close', () => {
+  const el = opener?.fromRow ? opener.img.row?.querySelector('.open') : opener?.img.thumb;
+  if (el?.isConnected) el.focus();
+});
+$('docket-copy').addEventListener('click', () => {
+  const label = $('docket-copy').querySelector('span');
+  const say = text => {
+    label.textContent = text;
+    clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => { label.textContent = 'Copy JSON'; }, 1500);
+  };
+  navigator.clipboard.writeText(JSON.stringify(docketImg.result, null, 2)).then(() => say('Copied'), () => say('Copy failed'));
+});
+
+$('export').addEventListener('click', () => {
+  const results = {}, errors = {};
+  for (const img of images) {
+    if (img.result) results[img.path] = img.result;
+    else if (img.error) errors[img.path] = img.error;
+  }
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  const blob = new Blob([JSON.stringify({ request: sortedRequest, results, errors }, null, 2)], { type: 'application/json' });
+  const a = h('a', { href: URL.createObjectURL(blob),
+    download: `peekaboolean-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json` });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href));
+});
 
 function selectTab(tab) {
   for (const t of tabs) {
@@ -620,6 +1184,7 @@ try {
   if (typeof stored?.state === 'string' && Array.isArray(stored.questions) && stored.questions.every(q =>
       TYPES.includes(q?.type) && ['name', 'instructions', 'lines'].every(f => typeof q[f] === 'string'))) { scheme = stored; buildRequest(); }
 } catch { scheme = null; }
+renderIntake();
 if (scheme) { renderScheme(); renderFrame(); } else loadRequest(DEFAULT_REQUEST);
 </script>
 </body>
