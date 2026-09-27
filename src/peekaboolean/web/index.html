@@ -1,5 +1,625 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>peekaboolean</title></head>
-<body></body>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>peekaboolean</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='4.25' width='22' height='15.5' rx='2' fill='%231b3d32'/%3E%3Cg fill='%23f0f4f2'%3E%3Crect x='3' y='6.25' width='5' height='5'/%3E%3Crect x='9.5' y='6.25' width='5' height='5'/%3E%3Crect x='16' y='6.25' width='5' height='5'/%3E%3Crect x='3' y='12.75' width='5' height='5'/%3E%3Crect x='16' y='12.75' width='5' height='5'/%3E%3C/g%3E%3Crect x='9.5' y='12.75' width='5' height='5' fill='%23d7352d'/%3E%3C/svg%3E">
+<style>
+:root {
+  --ground: oklch(0.93 0.008 165);
+  --panel: oklch(0.965 0.005 165);
+  --label: oklch(0.995 0 0);
+  --frame: oklch(0.33 0.045 170);
+  --frame-2: oklch(0.40 0.05 170);
+  --frame-ink: oklch(0.95 0.01 165);
+  --frame-ink-2: oklch(0.80 0.02 165);
+  --ink: oklch(0.22 0.015 170);
+  --ink-2: oklch(0.45 0.015 170);
+  --rule: oklch(0.80 0.012 165);
+  --live: oklch(0.58 0.2 28);
+  --live-ink: oklch(0.99 0 0);
+  --error: oklch(0.45 0.15 25);
+  --radius: 3px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: oklch(0.19 0.012 170); --panel: oklch(0.225 0.012 170); --label: oklch(0.27 0.014 170);
+    --frame: oklch(0.30 0.04 170); --frame-2: oklch(0.36 0.045 170);
+    --frame-ink: oklch(0.95 0.01 165); --frame-ink-2: oklch(0.78 0.02 165);
+    --ink: oklch(0.93 0.008 165); --ink-2: oklch(0.72 0.012 165); --rule: oklch(0.36 0.015 170);
+    --live: oklch(0.66 0.19 30); --live-ink: oklch(0.16 0.01 30); --error: oklch(0.75 0.14 30);
+  }
+}
+@font-face { font-family: Archivo; src: url(/archivo.woff2) format("woff2"); font-weight: 100 900; font-stretch: 62% 125%; font-display: swap; }
+
+*, *::before, *::after { box-sizing: border-box; }
+* { scrollbar-width: thin; }
+[hidden] { display: none !important; }
+html { color-scheme: light dark; accent-color: var(--frame); scrollbar-color: var(--rule) transparent; }
+body {
+  margin: 0; height: 100dvh; display: grid; grid-template-rows: auto 1fr;
+  background: var(--ground); color: var(--ink);
+  font: 400 15px/1.5 Archivo, system-ui, sans-serif; font-stretch: 100%;
+  font-variant-numeric: tabular-nums; caret-color: var(--live);
+}
+::selection { background: color-mix(in oklch, var(--live) 28%, transparent); }
+:focus-visible { outline: 2px solid var(--live); outline-offset: 2px; }
+h1, h2, p, ol { margin: 0; }
+button, input, textarea, select { font: inherit; color: inherit; letter-spacing: inherit; }
+::placeholder { color: var(--ink-2); opacity: 1; }
+
+.plate, .btn, .lbl, .seg label, .seg button, .sortby, .q-name, .bin-name, .count {
+  font-stretch: 68%; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.75rem;
+}
+.plate { display: inline-block; padding: 2px 8px; background: var(--label); color: var(--ink); border: 1px solid var(--rule); border-radius: 2px; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.icon { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 36px; padding: 0 12px; border: 1px solid transparent; border-radius: var(--radius);
+  background: none; white-space: nowrap; cursor: pointer;
+  transition: background-color 150ms var(--ease), color 150ms var(--ease);
+}
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.primary { background: var(--live); color: var(--live-ink); }
+.primary:hover { background: color-mix(in oklab, var(--live), var(--ink) 14%); }
+.secondary { background: var(--label); color: var(--ink); border-color: var(--rule); }
+.secondary:hover:not(:disabled) { background: color-mix(in oklab, var(--label), var(--ink) 6%); }
+.ghost { color: var(--frame-ink); }
+.ghost:hover:not(:disabled) { background: var(--frame-2); }
+.icon-btn { width: 28px; height: 28px; padding: 0; }
+kbd { font: inherit; line-height: 16px; padding: 0 4px; border: 1px solid color-mix(in oklch, var(--live-ink) 45%, transparent); border-radius: 2px; }
+
+.gauge {
+  position: relative; height: 6px;
+  background: repeating-linear-gradient(to right, var(--rule) 0 1px, transparent 1px 10%);
+  border-bottom: 1px solid var(--rule); border-right: 1px solid var(--rule);
+}
+.gauge::before { content: ""; position: absolute; inset: 0 auto 0 0; width: calc(var(--p, 0) * 100%); background: var(--ink-2); }
+.gauge.win::before { background: var(--ink); }
+
+.bar { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 16px; background: var(--frame); color: var(--frame-ink); }
+.wordmark { display: flex; align-items: center; gap: 8px; margin-right: 8px; font-size: 1.35rem; font-weight: 700; font-stretch: 62%; line-height: 1; }
+.mark { width: 18px; flex: none; fill: currentColor; }
+.mark .hit { fill: var(--live); }
+#info { flex: 1; min-width: 0; font-size: .8125rem; color: var(--frame-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#status { font-size: .8125rem; color: var(--frame-ink-2); }
+
+main { display: grid; grid-template-columns: minmax(340px, 400px) 1fr; min-height: 0; }
+.scheme { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; padding: 16px 16px 24px; border-right: 1px solid var(--rule); }
+#frame { min-width: 0; min-height: 0; overflow-y: auto; padding: 16px 24px 24px; }
+.zone-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; margin-bottom: 16px; }
+
+.seg { display: flex; margin: 0; padding: 0; min-width: 0; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--label); }
+.seg label, .seg button { position: relative; display: flex; align-items: center; height: 26px; padding: 0 8px; border: 0; background: none; color: var(--ink-2); cursor: pointer; transition: color 150ms var(--ease); }
+.seg label + label, .seg button + button { border-left: 1px solid var(--rule); }
+.seg label:first-of-type, .seg button:first-of-type { border-radius: 2px 0 0 2px; }
+.seg label:last-of-type, .seg button:last-of-type { border-radius: 0 2px 2px 0; }
+.seg label:hover, .seg button:hover { color: var(--ink); }
+.seg label:has(:checked), .seg [aria-pressed="true"] { background: var(--frame); color: var(--frame-ink); }
+.seg label:has(:focus-visible) { outline: 2px solid var(--live); outline-offset: 2px; z-index: 1; }
+.seg input { position: absolute; inset: 0; margin: 0; opacity: 0; pointer-events: none; }
+
+.lbl { display: block; margin-bottom: 6px; color: var(--ink-2); }
+.field { display: block; width: 100%; padding: 6px 10px; background: var(--panel); border: 1px solid var(--rule); border-radius: var(--radius); }
+textarea.field { resize: none; field-sizing: content; }
+.context { min-height: calc(2lh + 14px); max-height: calc(10lh + 14px); }
+[aria-invalid="true"] { border-color: var(--error); }
+
+.strips { list-style: none; padding: 0; margin: 16px 0 12px; display: grid; gap: 12px; }
+.strip { display: grid; gap: 8px; padding: 12px; background: var(--label); border: 1px solid var(--rule); border-radius: 3px; }
+.strip .row { display: flex; align-items: center; gap: 8px; }
+.q-name { flex: 1; min-width: 0; height: 28px; padding: 0 8px; background: var(--label); border: 1px solid var(--rule); border-radius: 2px; }
+.q-text { height: 36px; }
+.q-lines {
+  font-size: 14px; line-height: 1.6; min-height: calc(2lh + 14px); max-height: calc(12lh + 14px);
+  background-image: repeating-linear-gradient(to bottom, transparent 0 calc(1.6em - 1px), var(--rule) calc(1.6em - 1px) 1.6em);
+  background-attachment: local; background-origin: content-box; background-repeat: no-repeat;
+}
+.del { color: var(--ink-2); }
+.del:hover { color: var(--ink); background: var(--panel); }
+.cap { display: flex; justify-content: space-between; gap: 8px; font-size: .8125rem; color: var(--ink-2); }
+.field-error { display: flex; align-items: flex-start; gap: 6px; font-size: .8125rem; color: var(--error); }
+.field-error .icon { margin-top: 2px; }
+.wide { width: 100%; }
+.foot { margin-top: 12px; font-size: .8125rem; color: var(--ink-2); }
+#scheme-json { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+#json {
+  flex: 1; width: 100%; min-height: 20lh; padding: 10px 12px; resize: none; white-space: pre; tab-size: 2;
+  font: 13px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+  background: var(--panel); border: 1px solid var(--rule); border-radius: var(--radius);
+}
+
+.tabs { display: flex; gap: 6px; }
+.tab { cursor: pointer; background: none; color: var(--ink-2); transition: color 150ms var(--ease); }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { background: var(--label); color: var(--ink); }
+.sortby { display: flex; align-items: center; gap: 8px; color: var(--ink-2); }
+.sortby select { height: 28px; padding: 0 8px; color: var(--ink); background: var(--label); border: 1px solid var(--rule); border-radius: var(--radius); font: inherit; text-transform: inherit; }
+
+.intake {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px;
+  padding: 20px 24px; background: var(--panel); border: 1px solid var(--rule); border-top: 6px solid var(--frame); border-radius: 4px;
+}
+.intake h2 { font-size: 1.35rem; font-weight: 600; line-height: 1.25; }
+.intake p { margin-top: 4px; color: var(--ink-2); }
+.intake-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.quiet { margin-top: 16px; color: var(--ink-2); }
+
+.case {
+  margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1px; background: var(--frame); border: 6px solid var(--frame); border-radius: 4px;
+}
+.bin { display: grid; grid-template-rows: subgrid; grid-row: span 2; row-gap: 0; min-width: 0; }
+.bin-label { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: start; gap: 2px 8px; padding: 8px 10px; background: var(--label); border-bottom: 1px solid var(--rule); }
+.bin-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lvl { font-weight: 500; color: var(--ink-2); }
+.count { text-align: right; }
+.bin-desc { grid-column: 1 / -1; font-size: .75rem; line-height: 1.4; color: var(--ink-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.bin-interior { min-height: 120px; background: var(--panel); }
+
+@media (max-width: 899px) {
+  body { height: auto; min-height: 100dvh; }
+  main { grid-template-columns: 1fr; }
+  .scheme, #frame { overflow: visible; }
+  .scheme { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .bar { flex-wrap: wrap; row-gap: 4px; padding: 10px 16px; }
+  .wordmark { flex: 1; }
+  #sort { order: 1; }
+  #info { order: 2; flex: 1 1 200px; white-space: normal; }
+  #status, #stop, #export { order: 3; }
+  #frame { padding: 16px; }
+  .case { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  #json { min-height: 60dvh; }
+}
+</style>
+</head>
+<body>
+<!-- Icons: Lucide (lucide.dev), ISC licence -->
+<svg hidden xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-folder-open" viewBox="0 0 24 24"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-images" viewBox="0 0 24 24"><path d="m22 11-1.296-1.296a2.4 2.4 0 0 0-3.408 0L11 16"/><path d="M4 8a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2"/><circle cx="13" cy="7" r="1" fill="currentColor"/><rect x="8" y="2" width="14" height="14" rx="2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-trash-2" viewBox="0 0 24 24"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></symbol>
+  <symbol id="i-braces" viewBox="0 0 24 24"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></symbol>
+  <symbol id="i-square" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/></symbol>
+  <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-triangle-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-arrow-down-to-line" viewBox="0 0 24 24"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></symbol>
+</svg>
+
+<header class="bar">
+  <h1 class="wordmark">
+    <svg class="mark" viewBox="0 0 18 11.5" aria-hidden="true"><rect width="5" height="5"/><rect x="6.5" width="5" height="5"/><rect x="13" width="5" height="5"/><rect y="6.5" width="5" height="5"/><rect class="hit" x="6.5" y="6.5" width="5" height="5"/><rect x="13" y="6.5" width="5" height="5"/></svg>
+    peekaboolean
+  </h1>
+  <span id="info"></span>
+  <output id="status" aria-live="polite"></output>
+  <button type="button" class="btn ghost" id="stop" hidden><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg>Stop</button>
+  <button type="button" class="btn ghost" id="export" disabled><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>Export JSON</button>
+  <button type="button" class="btn primary" id="sort" aria-keyshortcuts="Meta+Enter Control+Enter"><svg class="icon" aria-hidden="true"><use href="#i-arrow-down-to-line"></use></svg>Sort<kbd aria-hidden="true">⌘↵</kbd></button>
+</header>
+
+<main>
+  <aside class="scheme" aria-labelledby="scheme-h">
+    <div class="zone-head">
+      <h2 class="plate" id="scheme-h">Scheme</h2>
+      <div class="seg" role="group" aria-label="Edit as">
+        <button type="button" id="view-form" aria-pressed="true">Form</button>
+        <button type="button" id="view-json" aria-pressed="false">JSON</button>
+      </div>
+    </div>
+    <div id="scheme-form">
+      <label class="lbl" for="state">Context</label>
+      <textarea class="field context" id="state" rows="2" placeholder="Answer using only what is visible in the image."></textarea>
+      <ol class="strips" id="strips"></ol>
+      <button type="button" class="btn secondary wide" id="add"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>Add question</button>
+      <p class="foot">One request, applied to every image.</p>
+    </div>
+    <div id="scheme-json" hidden>
+      <textarea id="json" spellcheck="false" autocomplete="off" wrap="off" aria-label="Request as JSON"></textarea>
+    </div>
+  </aside>
+
+  <section id="frame" aria-labelledby="frame-h">
+    <div class="zone-head">
+      <div class="tabs" role="tablist" aria-label="View">
+        <button type="button" class="plate tab" role="tab" id="frame-h" aria-selected="true" aria-controls="frame-body" data-view="frame">Frame</button>
+        <button type="button" class="plate tab" role="tab" aria-selected="false" aria-controls="frame-body" data-view="manifest" tabindex="-1">Manifest</button>
+      </div>
+      <label class="sortby" id="sort-by-label">Sort by <select id="sort-by"></select></label>
+    </div>
+    <div id="frame-body" role="tabpanel" aria-labelledby="frame-h"></div>
+  </section>
+</main>
+
+<dialog id="docket"></dialog>
+
+<script type="module">
+const DEFAULT_REQUEST = {
+  "state": "Answer using only what is visible in the image.",
+  "questions": {
+    "kind": {
+      "type": "choice",
+      "instructions": "What kind of image is this?",
+      "criteria": {
+        "photo": "A photograph of a real scene",
+        "screenshot": "An application or website screenshot",
+        "document": "A scanned or photographed document page",
+        "chart": "A chart, graph, or diagram"
+      }
+    },
+    "sharpness": {
+      "type": "score",
+      "instructions": "How sharp is the image?",
+      "criteria": [
+        "very blurry",
+        "somewhat blurry",
+        "acceptable",
+        "sharp"
+      ]
+    },
+    "person_visible": {
+      "type": "noul",
+      "instructions": "Is a person visible in the image?"
+    }
+  }
+};
+const KEY = 'peekaboolean.scheme';
+const SVG = 'http://www.w3.org/2000/svg';
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+const TYPE_LABEL = { choice: 'Choice', score: 'Score', noul: 'Yes/no' };
+const LINES = {
+  choice: { label: 'Options, one per line, key: description', placeholder: 'photo: A photograph of a real scene\nscreenshot: An app or website screenshot', max: 255, unit: 'options', hint: 'key: description' },
+  score: { label: 'Levels, one per line, lowest first', placeholder: 'very blurry\nsomewhat blurry\nacceptable\nsharp', max: 10, unit: 'levels', hint: 'lowest first' },
+  noul: { label: 'Optional wording, yes: … and no: …', placeholder: 'yes: a person is clearly visible\nno: no person anywhere', max: 2, unit: 'wordings', hint: 'optional' },
+};
+
+const $ = id => document.getElementById(id);
+const stateEl = $('state'), stripsEl = $('strips'), addBtn = $('add'), formPane = $('scheme-form'), jsonPane = $('scheme-json'),
+      jsonEl = $('json'), sortByEl = $('sort-by'), frameBody = $('frame-body'), tabs = [...document.querySelectorAll('[role=tab]')];
+
+let scheme = null;
+let checking = false;
+let jsonView = false, jsonShown = '';
+let frameTimer;
+const frameState = { view: 'frame', sortBy: null };
+
+function h(tag, props, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props ?? {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k === 'dataset') Object.assign(el.dataset, v);
+    else if (k === 'style') {
+      if (typeof v === 'string') el.style.cssText = v;
+      else for (const [p, x] of Object.entries(v)) p.includes('-') ? el.style.setProperty(p, x) : (el.style[p] = x);
+    }
+    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  el.append(...children.flat(Infinity).filter(c => c != null && c !== false));
+  return el;
+}
+
+function icon(name) {
+  const svg = document.createElementNS(SVG, 'svg'), use = document.createElementNS(SVG, 'use');
+  svg.setAttribute('class', 'icon');
+  svg.setAttribute('aria-hidden', 'true');
+  use.setAttribute('href', `#i-${name}`);
+  svg.append(use);
+  return svg;
+}
+
+function setStatus(text) { $('status').textContent = text; }
+
+const TYPES = ['choice', 'score', 'noul'];
+
+function fromText(s) {  // a value that parses as a JSON object/array is sent structured, like the API allows
+  const t = s.trim();
+  if (t.startsWith('{') || t.startsWith('[')) {
+    try { const v = JSON.parse(t); if (v && typeof v === 'object') return v; } catch {}
+  }
+  return t;
+}
+const toText = v => (typeof v === 'string' ? v : JSON.stringify(v));
+
+function splitKey(line) {  // "key: description" -> [key, description]
+  const i = line.indexOf(':');
+  return i < 0 ? [line.trim(), ''] : [line.slice(0, i).trim(), line.slice(i + 1).trim()];
+}
+
+function buildRequest() {
+  const errors = [], questions = {};
+  scheme.questions.forEach((q, index) => {
+    const err = (field, message) => errors.push({ index, field, message });
+    const name = q.name.trim() || `q${index + 1}`;
+    if (Object.hasOwn(questions, name)) err('name', `"${name}" is used twice`);
+    if (!q.instructions.trim()) err('instructions', 'Write the question');
+    const lines = q.lines.split('\n').map(l => l.trim()).filter(Boolean);
+    const out = { ...q.extra, type: q.type, instructions: fromText(q.instructions) };
+    if (q.type === 'choice') {
+      const criteria = {};
+      for (const line of lines) {
+        const [key, desc] = splitKey(line);
+        if (!key) { err('lines', `"${line}" needs an option name before the colon`); continue; }
+        if (Object.hasOwn(criteria, key)) err('lines', `Option "${key}" is listed twice`);
+        criteria[key] = fromText(desc);
+      }
+      const n = Object.keys(criteria).length;
+      if (n < 2 || n > 255) err('lines', `A choice needs 2 to 255 options, this has ${n}`);
+      out.criteria = criteria;
+    } else if (q.type === 'score') {
+      if (lines.length < 2 || lines.length > 10) err('lines', `A score needs 2 to 10 levels, this has ${lines.length}`);
+      out.criteria = lines.map(fromText);
+    } else {
+      const criteria = {};
+      for (const line of lines) {
+        const [key, desc] = splitKey(line);
+        const k = { yes: 'true', true: 'true', no: 'false', false: 'false' }[key.toLowerCase()];
+        if (!k) { err('lines', `Yes/no wording starts with "yes:" or "no:"`); continue; }
+        if (desc) criteria[k] = fromText(desc);
+      }
+      if (Object.keys(criteria).length) out.criteria = criteria;
+    }
+    questions[name] = out;
+  });
+  if (!scheme.questions.length) errors.push({ index: -1, field: 'questions', message: 'Add at least one question' });
+  return { request: { state: fromText(scheme.state), questions }, errors };
+}
+
+function loadRequest(obj) {
+  if (!obj || typeof obj !== 'object' || !obj.questions || typeof obj.questions !== 'object' || Array.isArray(obj.questions))
+    throw new Error('Expected {"state": …, "questions": {"name": {"type", "instructions", "criteria"}}}');
+  const questions = Object.entries(obj.questions).map(([name, q]) => {
+    if (!q || !TYPES.includes(q.type)) throw new Error(`Question "${name}" needs "type": "choice", "score" or "noul"`);
+    const { type, instructions = '', criteria, ...extra } = q;
+    let lines = '';
+    if (Array.isArray(criteria)) lines = criteria.map(toText).join('\n');
+    else if (criteria && typeof criteria === 'object')
+      lines = Object.entries(criteria).map(([k, v]) => {
+        const key = type === 'noul' ? ({ true: 'yes', false: 'no' }[k] ?? k) : k;
+        const d = toText(v ?? '');
+        return d ? `${key}: ${d}` : key;
+      }).join('\n');
+    return { name, type, instructions: toText(instructions), lines, extra };
+  });
+  scheme = { state: toText(obj.state ?? ''), questions };
+  save();
+  renderScheme();
+  renderFrame();
+}
+
+function bins(question) {
+  if (question.type === 'choice')
+    return Object.entries(question.criteria ?? {}).map(([key, d]) => ({ key, label: key, description: toText(d) }));
+  if (question.type === 'score')
+    return (question.criteria ?? []).map((level, i) => ({ key: String(i), label: toText(level), description: `level ${i}` }));
+  const c = question.criteria ?? {};
+  return [{ key: 'yes', label: 'yes', description: toText(c.true ?? '') },
+          { key: 'no', label: 'no', description: toText(c.false ?? '') }];
+}
+
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(scheme)); } catch {}
+}
+
+let uid = 0;
+function strip(q) {
+  const group = `type-${++uid}`;
+  return h('li', { class: 'strip' },
+    h('div', { class: 'row' },
+      h('input', { class: 'q-name', 'aria-label': 'Question name', value: q.name, autocomplete: 'off', spellcheck: 'false', dataset: { field: 'name' } }),
+      h('fieldset', { class: 'seg' },
+        h('legend', { class: 'vh' }, 'Type'),
+        TYPES.map(t => h('label', null,
+          h('input', { type: 'radio', name: group, value: t, checked: q.type === t, dataset: { field: 'type' } }), TYPE_LABEL[t]))),
+      h('button', { type: 'button', class: 'btn icon-btn del', dataset: { action: 'delete' } }, icon('trash-2'))),
+    h('input', { class: 'field q-text', 'aria-label': 'Question', placeholder: 'What kind of image is this?', value: q.instructions, dataset: { field: 'instructions' } }),
+    h('textarea', { class: 'field q-lines', rows: 3, text: q.lines, dataset: { field: 'lines' } }),
+    h('p', { class: 'cap' }, h('span', { class: 'cap-n' }), h('span', { class: 'cap-hint' })));
+}
+
+function updateStrips() {
+  [...stripsEl.children].forEach((li, i) => {
+    const q = scheme.questions[i], t = LINES[q.type], lines = li.querySelector('[data-field=lines]');
+    li.querySelector('[data-field=name]').placeholder = `q${i + 1}`;
+    li.querySelector('.del').setAttribute('aria-label', `Delete question ${q.name.trim() || `q${i + 1}`}`);
+    lines.placeholder = t.placeholder;
+    lines.setAttribute('aria-label', t.label);
+    li.querySelector('.cap-n').textContent = `${q.lines.split('\n').filter(l => l.trim()).length} / ${t.max} ${t.unit}`;
+    li.querySelector('.cap-hint').textContent = t.hint;
+  });
+}
+
+function renderScheme() {
+  stateEl.value = scheme.state;
+  stripsEl.replaceChildren(...scheme.questions.map(strip));
+  updateStrips();
+  markErrors(checking ? buildRequest().errors : []);
+}
+
+function fieldEl(index, field) {
+  return index < 0 ? addBtn : stripsEl.children[index].querySelector(`[data-field=${field}]`);
+}
+
+function markErrors(errors) {
+  formPane.querySelectorAll('.field-error').forEach(p => p.remove());
+  formPane.querySelectorAll('[aria-describedby]').forEach(el => { el.removeAttribute('aria-describedby'); el.removeAttribute('aria-invalid'); });
+  for (const { index, field, message } of errors) {
+    const el = fieldEl(index, field);
+    if (el.hasAttribute('aria-describedby')) continue;
+    const id = `err-${index}-${field}`;
+    el.setAttribute('aria-describedby', id);
+    if (index >= 0) el.setAttribute('aria-invalid', 'true');
+    (field === 'name' ? el.parentElement : el).after(h('p', { class: 'field-error', id }, icon('triangle-alert'), message));
+  }
+}
+
+function edited() {
+  save();
+  updateStrips();
+  if (checking) markErrors(buildRequest().errors);
+  clearTimeout(frameTimer);
+  frameTimer = setTimeout(renderFrame, 120);
+}
+
+stateEl.addEventListener('input', () => { scheme.state = stateEl.value; edited(); });
+
+stripsEl.addEventListener('input', e => {
+  const field = e.target.dataset.field;
+  if (!field) return;
+  scheme.questions[[...stripsEl.children].indexOf(e.target.closest('li'))][field] = e.target.value;
+  edited();
+});
+
+stripsEl.addEventListener('click', e => {
+  const del = e.target.closest('[data-action=delete]');
+  if (!del) return;
+  const i = [...stripsEl.children].indexOf(del.closest('li'));
+  scheme.questions.splice(i, 1);
+  renderScheme();
+  edited();
+  const next = stripsEl.children[i - 1] ?? stripsEl.children[0];
+  (next?.querySelector('[data-field=instructions]') ?? addBtn).focus();
+});
+
+addBtn.addEventListener('click', () => {
+  scheme.questions.push({ name: '', type: 'choice', instructions: '', lines: '', extra: {} });
+  renderScheme();
+  edited();
+  stripsEl.lastElementChild.querySelector('[data-field=instructions]').focus();
+});
+
+function showJsonError(message) {
+  jsonPane.querySelector('.field-error')?.remove();
+  if (!message) { jsonEl.removeAttribute('aria-invalid'); jsonEl.removeAttribute('aria-describedby'); return; }
+  jsonEl.setAttribute('aria-invalid', 'true');
+  jsonEl.setAttribute('aria-describedby', 'json-error');
+  jsonEl.after(h('p', { class: 'field-error', id: 'json-error' }, icon('triangle-alert'), message));
+}
+
+function applyJson(report) {
+  const text = jsonEl.value;
+  if (text !== jsonShown) {
+    try { loadRequest(JSON.parse(text)); }
+    catch (e) {
+      if (report || jsonEl.hasAttribute('aria-invalid')) showJsonError(e instanceof SyntaxError ? `Not valid JSON: ${e.message}` : e.message);
+      return false;
+    }
+    jsonShown = text;
+  }
+  showJsonError(null);
+  return true;
+}
+
+function setView(json) {
+  if (json === jsonView) return true;
+  if (!json && !applyJson(true)) { jsonEl.focus(); return false; }
+  if (json) jsonEl.value = jsonShown = JSON.stringify(buildRequest().request, null, 2);
+  jsonView = json;
+  formPane.hidden = json;
+  jsonPane.hidden = !json;
+  $('view-form').setAttribute('aria-pressed', !json);
+  $('view-json').setAttribute('aria-pressed', json);
+  return true;
+}
+
+$('view-form').addEventListener('click', () => setView(false));
+$('view-json').addEventListener('click', () => setView(true));
+jsonEl.addEventListener('input', () => applyJson(false));
+
+function requestSort() {
+  if (jsonView && !applyJson(true)) { jsonEl.focus(); return; }
+  const { request, errors } = buildRequest();
+  checking = errors.length > 0;
+  if (checking) setView(false);
+  markErrors(errors);
+  if (checking) { fieldEl(errors[0].index, errors[0].field).focus(); return; }
+  document.dispatchEvent(new CustomEvent('sort', { detail: request }));
+}
+
+$('sort').addEventListener('click', requestSort);
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey) || e.isComposing) return;
+  e.preventDefault();
+  if (!e.repeat) requestSort();
+});
+
+function intake() {
+  return h('div', { class: 'intake' },
+    h('div', null,
+      h('h2', null, 'Drop a folder or images'),
+      h('p', null, `or paste with ${isMac ? '⌘V' : 'Ctrl+V'} · JPEG, PNG, WebP, GIF, BMP, TIFF · nothing leaves this machine`)),
+    h('div', { class: 'intake-actions' },
+      h('button', { type: 'button', class: 'btn secondary', id: 'choose-folder' }, icon('folder-open'), 'Choose folder'),
+      h('button', { type: 'button', class: 'btn secondary', id: 'choose-images' }, icon('images'), 'Choose images')));
+}
+
+function caseView(q) {
+  const list = q ? bins(q) : [];
+  if (!list.length) return h('p', { class: 'quiet' }, q ? 'Add options to see the bins' : 'Add a question to see the bins');
+  return h('div', { class: 'case' }, list.map(b => h('div', { class: 'bin', dataset: { key: b.key } },
+    h('div', { class: 'bin-label' },
+      h('span', { class: 'bin-name', title: b.label }, q.type === 'score' ? [h('span', { class: 'lvl' }, `L${b.key}`), ' ', b.label] : b.label),
+      h('span', { class: 'count' }, '0'),
+      q.type !== 'score' && b.description ? h('p', { class: 'bin-desc', title: b.description }, b.description) : null),
+    h('div', { class: 'bin-interior' }))));
+}
+
+function renderFrame() {
+  const { request } = buildRequest();
+  const names = Object.keys(request.questions);
+  if (!names.includes(frameState.sortBy)) frameState.sortBy = names[0] ?? null;
+  sortByEl.replaceChildren(...names.map(n => h('option', { value: n, selected: n === frameState.sortBy }, n)));
+  $('sort-by-label').hidden = frameState.view !== 'frame' || !names.length;
+  frameBody.replaceChildren(intake(), frameState.view === 'frame'
+    ? caseView(request.questions[frameState.sortBy])
+    : h('p', { class: 'quiet' }, 'Nothing sorted yet'));
+}
+
+sortByEl.addEventListener('change', () => { frameState.sortBy = sortByEl.value; renderFrame(); });
+
+function selectTab(tab) {
+  for (const t of tabs) {
+    const on = t === tab;
+    t.setAttribute('aria-selected', on);
+    t.tabIndex = on ? 0 : -1;
+    if (on) t.id = 'frame-h'; else t.removeAttribute('id');
+  }
+  frameState.view = tab.dataset.view;
+  renderFrame();
+}
+tabs.forEach(t => t.addEventListener('click', () => selectTab(t)));
+tabs[0].parentElement.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const t = tabs[1 - tabs.indexOf(e.target)];
+  selectTab(t);
+  t.focus();
+});
+
+if (!isMac) $('sort').querySelector('kbd').textContent = 'Ctrl↵';
+
+fetch('/api/info')
+  .then(r => (r.ok ? r.json() : Promise.reject()))
+  .then(i => { $('info').textContent = `${i.model.split('/').pop()} · ${i.adapter} · ${i.device} · ${i.max_edge} px`; })
+  .catch(() => { $('info').textContent = 'server not reachable'; });
+
+try {
+  const stored = JSON.parse(localStorage.getItem(KEY));
+  if (Array.isArray(stored?.questions)) { scheme = stored; buildRequest(); }
+} catch { scheme = null; }
+if (scheme) { renderScheme(); renderFrame(); } else loadRequest(DEFAULT_REQUEST);
+</script>
+</body>
 </html>
