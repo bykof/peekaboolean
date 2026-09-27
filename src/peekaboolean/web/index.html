@@ -663,7 +663,7 @@ const frameBanner = $('frame-banner'), schemeBanner = $('scheme-banner'), intake
 const axisEl = h('div', { class: 'axis' }), trayEl = h('div', { class: 'thumbs tray' }), trayCount = h('span', { class: 'count' });
 const unsortedEl = h('div', { class: 'unsorted' }, h('p', { class: 'tray-head' }, 'Unsorted', trayCount), trayEl);
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-const unbroken = e => e.target.removeAttribute('src');
+const unbroken = e => { e.target.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; };
 
 let images = [];
 let nextId = 0, pasted = 0, dragDepth = 0;
@@ -1130,7 +1130,7 @@ const step = d => fillDocket(images[(images.indexOf(docketImg) + d + images.leng
 $('docket-prev').addEventListener('click', () => step(-1));
 $('docket-next').addEventListener('click', () => step(1));
 $('docket-close').addEventListener('click', () => docket.close());
-$('docket-img').addEventListener('error', unbroken);
+$('docket-img').addEventListener('error', e => e.target.removeAttribute('src'));
 docket.addEventListener('keydown', e => {
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
   e.preventDefault();
