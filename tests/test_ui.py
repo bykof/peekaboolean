@@ -10,7 +10,7 @@ import json
 import threading
 import urllib.error
 import urllib.request
-from http.server import HTTPServer
+from http.server import ThreadingHTTPServer
 
 from PIL import Image
 
@@ -23,14 +23,16 @@ QUESTIONS = {"kind": {"type": "choice", "instructions": "What kind of image is t
 
 
 def fake_answer(state, questions, image):
+    if state == "boom":
+        raise RuntimeError("boom")
     request_examples(state, questions, "upload")   # the validation evaluate runs first
     img = load_image(image, 512)
     return {"answers": {"kind": {"type": "choice", "choice": "photo"}}, "size": list(img.size)}
 
 
-def post(base, body):
+def post(base, body, headers=None):
     req = urllib.request.Request(base + "/api/answer", data=json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json"})
+                                 headers={"Content-Type": "application/json", **(headers or {})})
     try:
         with urllib.request.urlopen(req) as r:
             return r.status, json.loads(r.read())
@@ -45,7 +47,7 @@ def png_b64(size=(40, 30)):
 
 
 def test_ui_server():
-    server = HTTPServer(("127.0.0.1", 0), make_handler(fake_answer, {"model": "stub"}))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(fake_answer, {"model": "stub"}))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{server.server_port}"
     try:
@@ -68,7 +70,16 @@ def test_ui_server():
         assert (status, out["scope"]) == (400, "request") and "2..255" in out["error"], out
 
         status, out = post(base, {"questions": QUESTIONS, "image": base64.b64encode(b"not an image").decode()})
-        assert (status, out["scope"]) == (400, "image"), out
+        assert (status, out["scope"]) == (400, "image") and "BytesIO" not in out["error"], out
+
+        status, out = post(base, {"state": "boom", "questions": QUESTIONS, "image": png_b64()})
+        assert (status, out["scope"]) == (500, "server"), out
+
+        status, out = post(base, {"questions": QUESTIONS, "image": png_b64()}, {"Content-Type": "text/plain"})
+        assert (status, out["scope"]) == (415, "request"), out
+
+        status, out = post(base, {"questions": QUESTIONS, "image": png_b64()}, {"Host": "evil.example"})
+        assert (status, out["scope"]) == (403, "request"), out
 
         status, out = post(base, {"questions": QUESTIONS})
         assert (status, out["scope"]) == (400, "request") and "image" in out["error"], out
