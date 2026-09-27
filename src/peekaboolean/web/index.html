@@ -86,7 +86,7 @@ kbd { font: inherit; line-height: 16px; padding: 0 4px; border: 1px solid color-
 .bar { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 16px; background: var(--frame); color: var(--frame-ink); }
 .wordmark { display: flex; align-items: center; gap: 8px; margin-right: 8px; font-size: 1.35rem; font-weight: 700; font-stretch: 62%; line-height: 1; }
 .mark { width: 18px; flex: none; fill: currentColor; }
-.mark .hit { fill: var(--live); }
+.mark .hit { fill: var(--frame-ink-2); }
 #info { flex: 1; min-width: 0; font-size: .8125rem; color: var(--frame-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #status { font-size: .8125rem; color: var(--frame-ink-2); }
 
@@ -340,7 +340,7 @@ function splitKey(line) {  // "key: description" -> [key, description]
 }
 
 function buildRequest() {
-  const errors = [], questions = {};
+  const errors = [], questions = Object.create(null);
   scheme.questions.forEach((q, index) => {
     const err = (field, message) => errors.push({ index, field, message });
     const name = q.name.trim() || `q${index + 1}`;
@@ -349,7 +349,7 @@ function buildRequest() {
     const lines = q.lines.split('\n').map(l => l.trim()).filter(Boolean);
     const out = { ...q.extra, type: q.type, instructions: fromText(q.instructions) };
     if (q.type === 'choice') {
-      const criteria = {};
+      const criteria = Object.create(null);
       for (const line of lines) {
         const [key, desc] = splitKey(line);
         if (!key) { err('lines', `"${line}" needs an option name before the colon`); continue; }
@@ -363,10 +363,10 @@ function buildRequest() {
       if (lines.length < 2 || lines.length > 10) err('lines', `A score needs 2 to 10 levels, this has ${lines.length}`);
       out.criteria = lines.map(fromText);
     } else {
-      const criteria = {};
+      const criteria = Object.create(null), words = { yes: 'true', true: 'true', no: 'false', false: 'false' };
       for (const line of lines) {
         const [key, desc] = splitKey(line);
-        const k = { yes: 'true', true: 'true', no: 'false', false: 'false' }[key.toLowerCase()];
+        const k = Object.hasOwn(words, key.toLowerCase()) && words[key.toLowerCase()];
         if (!k) { err('lines', `Yes/no wording starts with "yes:" or "no:"`); continue; }
         if (desc) criteria[k] = fromText(desc);
       }
@@ -617,7 +617,8 @@ fetch('/api/info')
 
 try {
   const stored = JSON.parse(localStorage.getItem(KEY));
-  if (Array.isArray(stored?.questions)) { scheme = stored; buildRequest(); }
+  if (typeof stored?.state === 'string' && Array.isArray(stored.questions) && stored.questions.every(q =>
+      TYPES.includes(q?.type) && ['name', 'instructions', 'lines'].every(f => typeof q[f] === 'string'))) { scheme = stored; buildRequest(); }
 } catch { scheme = null; }
 if (scheme) { renderScheme(); renderFrame(); } else loadRequest(DEFAULT_REQUEST);
 </script>
