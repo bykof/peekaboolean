@@ -29,6 +29,7 @@ peekaboolean-prepare-mix = "peekaboolean.prepare_mix:main"
 peekaboolean-prepare-derived = "peekaboolean.prepare_derived:main"
 peekaboolean-robustness = "peekaboolean.robustness:main"
 peekaboolean-serve = "peekaboolean.serve:main"
+peekaboolean-ui = "peekaboolean.ui:main"
 
 [build-system]
 requires = ["hatchling"]

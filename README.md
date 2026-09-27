@@ -102,6 +102,19 @@ questions may carry their own wording: `"criteria": {"true": "...", "false": "..
 Each question is scored independently, so answers do not depend on option order or on
 the other questions in the request.
 
+### Local UI
+
+```bash
+uv run python -m peekaboolean.ui --adapter peekaboolean-500m
+```
+
+Opens a page on http://127.0.0.1:8765. Drop a folder or images on it (or choose them,
+or paste), write the questions, press Sort (⌘↵). Each image lands in the bin of its
+answer; the manifest lists every answer with its probabilities, and Export JSON saves
+`{request, results, errors}`. Choice options are one per line as `key: description`,
+score levels one per line lowest first, yes/no wording optional as `yes: …` / `no: …`.
+The JSON view edits the same request in the format above. Images stay on the machine.
+
 ### Serving modes
 
 `--mode` (default `auto`); all return the same answers in fp32:
