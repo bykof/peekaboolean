@@ -141,6 +141,7 @@ textarea.field { resize: none; field-sizing: content; }
 .tab:hover { background: color-mix(in oklab, var(--label), var(--ink) 6%); }
 .tab[aria-selected="true"] { background: var(--frame); color: var(--frame-ink); border-color: var(--frame); }
 .sortby { display: flex; align-items: center; gap: 8px; color: var(--ink-2); }
+.sortby .btn { height: 28px; }
 .sortby select { height: 28px; padding: 0 8px; color: var(--ink); background: var(--label); border: 1px solid var(--rule); border-radius: var(--radius); font: inherit; text-transform: inherit; }
 
 .intake {
@@ -158,10 +159,11 @@ textarea.field { resize: none; field-sizing: content; }
   gap: 1px; background: var(--panel); border: 6px solid var(--frame); border-radius: 4px;
 }
 .bin { display: grid; grid-template-rows: subgrid; grid-row: span 2; row-gap: 0; min-width: 0; outline: 1px solid var(--frame); }
-.bin-label { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: start; gap: 2px 8px; padding: 8px 10px; background: var(--label); border-bottom: 1px solid var(--rule); }
+.bin-label { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-content: start; gap: 2px 8px; padding: 8px 10px; background: var(--label); border-bottom: 1px solid var(--rule); }
 .bin-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lvl { font-weight: 500; color: var(--ink-2); }
 .count { text-align: right; }
+.bin-zip { width: 20px; height: 20px; margin: -1px -4px -1px 0; }
 .bin-desc { grid-column: 1 / -1; font-size: .75rem; line-height: 1.4; color: var(--ink-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .bin-interior { min-height: 120px; background: var(--panel); }
 .count.flash { animation: flash 600ms var(--ease); }
@@ -339,7 +341,10 @@ body.dragging #frame { outline: 2px solid var(--live); outline-offset: -2px; }
         <button type="button" class="plate tab" role="tab" aria-selected="false" aria-controls="frame-body" data-view="manifest" tabindex="-1">Manifest</button>
       </div>
       <span class="stale" id="stale" hidden>Scheme changed since this sort</span>
-      <label class="sortby" id="sort-by-label">Sort by <select id="sort-by"></select></label>
+      <div class="sortby" id="sort-by-label">
+        <label for="sort-by">Sort by</label> <select id="sort-by"></select>
+        <button type="button" class="btn secondary" id="zip" title="Download the sorted images as one zip, a folder per bin" disabled><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>Zip</button>
+      </div>
     </div>
     <div id="frame-body" role="tabpanel" aria-labelledby="frame-h">
       <div id="frame-banner"></div>
@@ -877,7 +882,7 @@ function progress() {
   const finished = images.filter(i => i.status === 'done' || i.status === 'error').length;
   axisEl.style.setProperty('--p', images.length ? finished / images.length : 0);
   intakeEl.classList.toggle('running', !!run);
-  $('export').disabled = !images.some(i => i.result);
+  $('zip').disabled = $('export').disabled = !images.some(i => i.result);
   if (run) setStatus(summary());
 }
 
@@ -1014,11 +1019,13 @@ function updateThumb(img) {
   t.setAttribute('aria-label', label);
 }
 
-function binEl(q, b, list) {
+function binEl(q, name, b, list) {
   const el = h('div', { class: 'bin', dataset: { key: b.key } },
     h('div', { class: 'bin-label' },
       h('span', { class: 'bin-name', title: b.label }, q.type === 'score' ? [h('span', { class: 'lvl' }, `L${b.key}`), ' ', b.label] : b.label),
       h('span', { class: 'count' }),
+      h('button', { type: 'button', class: 'btn icon-btn tool bin-zip', 'aria-label': `Download ${b.label} as a zip`,
+                    title: `Download ${b.label} as a zip`, onclick: () => downloadZip(q, name, [b]) }, icon('download')),
       q.type !== 'score' && b.description ? h('p', { class: 'bin-desc', title: b.description }, b.description) : null),
     h('div', { class: 'bin-interior thumbs' }));
   fillBin(el, list);
@@ -1029,12 +1036,13 @@ function fillBin(el, list) {
   fill(el.lastElementChild, list);
   list.forEach(updateThumb);
   el.querySelector('.count').textContent = list.length;
+  el.querySelector('.bin-zip').disabled = !list.length;
 }
 
 function caseView(q, name) {
   const list = q ? bins(q) : [];
   if (!list.length) return h('p', { class: 'quiet' }, q ? 'Add options to see the bins' : 'Add a question to see the bins');
-  return h('div', { class: 'case' }, list.map(b => binEl(q, b, members(q, name, b.key))));
+  return h('div', { class: 'case' }, list.map(b => binEl(q, name, b, members(q, name, b.key))));
 }
 
 function renderReturned() {
@@ -1210,13 +1218,82 @@ $('export').addEventListener('click', () => {
     if (img.result) results[img.path] = img.result;
     else if (img.error) errors[img.path] = img.error;
   }
-  const d = new Date(), p = n => String(n).padStart(2, '0');
-  const blob = new Blob([JSON.stringify({ request: sortedRequest, results, errors }, null, 2)], { type: 'application/json' });
-  const a = h('a', { href: URL.createObjectURL(blob),
-    download: `peekaboolean-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json` });
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href));
+  download(new Blob([JSON.stringify({ request: sortedRequest, results, errors }, null, 2)], { type: 'application/json' }),
+           `peekaboolean-${stamp()}.json`);
   unexported = false;
+});
+
+function stamp() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+function download(blob, name) {
+  const a = h('a', { href: URL.createObjectURL(blob), download: name });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60_000);  // the download may start reading after click() returns
+}
+
+const CRC = Uint32Array.from({ length: 256 }, (_, n) => {
+  for (let k = 0; k < 8; k++) n = n & 1 ? 0xEDB88320 ^ (n >>> 1) : n >>> 1;
+  return n;
+});
+
+function le(...fields) {  // [bytes, value] pairs, little-endian
+  const view = new DataView(new ArrayBuffer(fields.reduce((n, [b]) => n + b, 0)));
+  let at = 0;
+  for (const [b, v] of fields) { b === 2 ? view.setUint16(at, v, true) : view.setUint32(at, v, true); at += b; }
+  return view;
+}
+
+async function zipBlob(entries, onFile) {  // [path, File] pairs -> a stored (uncompressed) zip; images do not deflate
+  // ponytail: no ZIP64 records, so 4 GiB and 65535 files per zip; add them if one bin outgrows that
+  const named = entries.map(([path, file]) => [new TextEncoder().encode(path), file]);
+  if (named.length > 0xFFFF || named.reduce((n, [name, file]) => n + 76 + 2 * name.length + file.size, 22) > 0xFFFFFFFF)
+    throw new RangeError('over 4 GiB or 65535 images; download the bins one at a time');
+  const files = [], dir = [];
+  let offset = 0;
+  for (const [i, [name, file]] of named.entries()) {
+    onFile?.(i + 1);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let crc = ~0;
+    for (let j = 0; j < bytes.length; j++) crc = CRC[(crc ^ bytes[j]) & 255] ^ (crc >>> 8);
+    const d = new Date(Math.max(file.lastModified, new Date(1980, 0, 1)));  // DOS dates start in 1980
+    const common = le([2, 20], [2, 0x800], [2, 0], [2, d.getHours() << 11 | d.getMinutes() << 5 | d.getSeconds() >> 1],
+                      [2, (d.getFullYear() - 1980) << 9 | (d.getMonth() + 1) << 5 | d.getDate()],
+                      [4, ~crc >>> 0], [4, file.size], [4, file.size], [2, name.length], [2, 0]);
+    files.push(le([4, 0x04034b50]), common, name, file);
+    dir.push(le([4, 0x02014b50], [2, 20]), common, le([2, 0], [2, 0], [2, 0], [4, 0], [4, offset]), name);
+    offset += 30 + name.length + file.size;
+  }
+  const size = dir.reduce((n, part) => n + part.byteLength, 0);
+  return new Blob([...files, ...dir, le([4, 0x06054b50], [2, 0], [2, 0], [2, named.length], [2, named.length], [4, size], [4, offset], [2, 0])],
+                  { type: 'application/zip' });
+}
+
+const safe = s => s.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').trim().replace(/^\./, '_').slice(0, 80) || '_';
+const folder = (q, b) => safe(q.type === 'score' ? `L${b.key} ${b.label}` : b.label);
+
+let zipping = false;
+async function downloadZip(q, name, list) {  // a folder per bin, also in a one-bin zip, so several unzip into one tree
+  if (zipping) return;
+  const root = images[0].path.split('/')[0] + '/', cut = images.every(i => i.path.startsWith(root)) ? root.length : 0;
+  const entries = list.flatMap(b => members(q, name, b.key).map(img => [`${folder(q, b)}/${img.path.slice(cut)}`, img.file]));
+  zipping = true;
+  try {
+    const blob = await zipBlob(entries, i => setStatus(`Zipping ${i} / ${entries.length}`));
+    download(blob, `peekaboolean-${safe(name)}${list.length === 1 ? `-${folder(q, list[0])}` : ''}-${stamp()}.zip`);
+    setStatus(`Zipped ${plural(entries.length, 'image')}`);
+  } catch (e) {
+    setStatus('');
+    banner(`Could not build the zip: ${e.message}`);
+  } finally {
+    zipping = false;
+  }
+}
+$('zip').addEventListener('click', () => {
+  const q = sortedRequest?.questions[frameState.sortBy];
+  if (q) downloadZip(q, frameState.sortBy, bins(q));
 });
 addEventListener('beforeunload', e => { if (run || (unexported && images.some(i => i.result))) e.preventDefault(); });
 
