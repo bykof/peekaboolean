@@ -115,6 +115,18 @@ answer; the manifest lists every answer with its probabilities, and Export JSON 
 score levels one per line lowest first, yes/no wording optional as `yes: …` / `no: …`.
 The JSON view edits the same request in the format above. Images stay on the machine.
 
+![The UI sorting 42 Wikimedia Commons images in real time](docs/img/ui-demo.gif)
+
+Real time on an M1 Max (MPS, 512 px): 42 images from Wikimedia Commons with the three
+questions of `requests/general.json` (the page's default) sort in 8.9 s, 206 ms of model
+time each. The same images, authors and licences are listed in
+[docs/demo-images.tsv](docs/demo-images.tsv); fetch them and drop `data/demo` on the page:
+
+```bash
+mkdir -p data/demo && tail -n +2 docs/demo-images.tsv | while IFS=$'\t' read -r file url _; do
+  curl -sSfL -A "peekaboolean-demo (https://github.com/bykof/peekaboolean)" -o "data/demo/$file" "$url"; done
+```
+
 ### Serving modes
 
 `--mode` (default `auto`); all return the same answers in fp32:
