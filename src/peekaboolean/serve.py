@@ -132,11 +132,9 @@ def score_naive(model, processor, examples, image, max_edge=1024, chunk=32) -> l
     return out
 
 
-def _split_point(texts: list[str]) -> int:
-    """Where the candidates stop agreeing, backed up to a line break.
-
-    Cutting on a newline keeps the split off a token boundary the tokenizer might merge
-    across, so prefix ids + suffix ids are the ids the one-piece prompt would have had.
+def _split_point(texts: list[str], tokenizer) -> int:
+    """Where the candidates stop agreeing, backed up to a line break, such that prefix
+    ids + suffix ids are the ids the one-piece prompt would have had.
     """
     common = texts[0]
     for t in texts[1:]:
@@ -145,13 +143,19 @@ def _split_point(texts: list[str]) -> int:
             i += 1
         common = common[:i]
     cut = common.rfind("\n") + 1
-    # Then back off the whole whitespace run. A prefix *ending* in "\n\n" tokenizes it as
-    # one token, but inside the full prompt, followed by text, it is two -- so the model
-    # would be served ids it never trained on. Starting the suffix at the run keeps
-    # prefix ids + suffix ids identical to the one-piece prompt.
+    # Then back off the whole whitespace run. SmolVLM tokenizes a prefix *ending* in
+    # "\n\n" as one token, but inside the full prompt, followed by text, as two -- so the
+    # model would be served ids it never trained on. Qwen merges across the other side
+    # (".\n\n" is one token), so check the ids and move to a later line break if needed.
     while cut > 0 and common[cut - 1].isspace():
         cut -= 1
-    return cut
+    enc = lambda batch: tokenizer(batch, add_special_tokens=False)["input_ids"]
+    whole = enc(texts)
+    for c in [cut] + [i + 1 for i in range(cut, len(common)) if common[i] == "\n"]:
+        head = enc([common[:c]])[0]
+        if all(head + tail == w for tail, w in zip(enc([t[c:] for t in texts]), whole)):
+            return c
+    raise ValueError("no prefix/suffix split reproduces the one-piece token ids")
 
 
 def _signs(examples, processor, device) -> torch.Tensor:
@@ -207,7 +211,7 @@ def score_shared(model, processor, examples, image, max_edge=1024, chunk=32,
         texts.extend(prompts)
     mark("chat_template")
 
-    cut = _split_point(texts)
+    cut = _split_point(texts, processor.tokenizer)
     img = image if image is not None else load_image(examples[0][1].image, max_edge)
     prefix = processor(text=[texts[0][:cut]], images=[img], return_tensors="pt").to(device)
     mark("image_preprocess")
@@ -288,7 +292,7 @@ def score_single(model, processor, examples, image, max_edge=1024, chunk=None,
         spans.append((len(texts), len(texts) + len(prompts)))
         texts.extend(prompts)
     mark("chat_template")
-    cut = _split_point(texts)
+    cut = _split_point(texts, processor.tokenizer)
     img = image if image is not None else load_image(examples[0][1].image, max_edge)
     prefix = processor(text=[texts[0][:cut]], images=[img], return_tensors="pt")
     mark("image_preprocess")

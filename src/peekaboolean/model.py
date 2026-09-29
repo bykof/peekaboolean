@@ -172,7 +172,8 @@ class CandidateScorer(nn.Module):
             pixels, grid = pixels[:int(grid[0].prod())], grid[:1]
             counts = torch.tensor([ids.shape[0]])
         counts = counts.tolist()
-        features = inner.get_image_features(pixels, grid).pooler_output
+        vision = inner.get_image_features(pixels, grid)
+        features = vision.pooler_output
         rows = torch.cat([f.repeat(c, 1) for f, c in zip(features, counts)])
         embeds = inner.get_input_embeddings()(ids)
         image_mask = (ids == inner.config.image_token_id).unsqueeze(-1).expand_as(embeds)
@@ -180,8 +181,18 @@ class CandidateScorer(nn.Module):
         row_grid = grid.repeat_interleave(torch.tensor(counts, device=grid.device), dim=0)
         positions, _ = inner.get_rope_index(ids, mm_token_type_ids=batch["mm_token_type_ids"],
                                             image_grid_thw=row_grid, attention_mask=mask)
-        return inner(inputs_embeds=embeds, attention_mask=mask, position_ids=positions,
-                     use_cache=False).last_hidden_state
+        deep = getattr(vision, "deepstack_features", None)
+        if not deep:                # Qwen3.5 has no deepstack
+            return inner(inputs_embeds=embeds, attention_mask=mask, position_ids=positions,
+                         use_cache=False).last_hidden_state
+        # Qwen3-VL adds features of three vision layers to the image tokens of LM layers
+        # 0-2. The model only does that when handed pixel values, so pass the features
+        # ourselves, repeated per row like the embeddings above.
+        sizes = [f.shape[0] for f in features]
+        deep = [torch.cat([d.repeat(c, 1) for d, c in zip(layer.split(sizes), counts)]) for layer in deep]
+        return inner.language_model(inputs_embeds=embeds, attention_mask=mask, position_ids=positions,
+                                    visual_pos_masks=image_mask[..., 0], deepstack_visual_embeds=deep,
+                                    use_cache=False).last_hidden_state
 
     def forward(self, batch: dict) -> torch.Tensor:
         """batch holds K candidate sequences. Returns a (K,) tensor of scores."""
