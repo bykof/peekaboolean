@@ -54,9 +54,9 @@ def temper(view, t):
 
 
 def soften(views, t):
-    """Teacher belief at temperature t: each option-order view tempered, then averaged."""
-    a, b = temper(views[0], t), temper(views[1], t)
-    return [(x + y) / 2 for x, y in zip(a, b)]
+    """Teacher belief at temperature t: each view (option order, teacher) tempered, then averaged."""
+    tempered = [temper(v, t) for v in views]
+    return [sum(x) / len(tempered) for x in zip(*tempered)]
 
 
 def fit_temperatures(path):

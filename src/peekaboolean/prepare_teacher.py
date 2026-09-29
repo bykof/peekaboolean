@@ -26,6 +26,17 @@ author's intent ("this should be false") never reaches the labeller.
 Runs in the teacher environment (vLLM), not the project environment:
   VLLM_USE_FLASHINFER_SAMPLER=0 /path/to/vllm-env/bin/python src/peekaboolean/prepare_teacher.py --out data/teacher-v7
 Resumable: images already present in the output are skipped.
+
+Two teachers (docs/alternative-backbones.md §9b): the mean of Qwen3.6-35B-A3B and
+Qwen3-VL-30B-A3B beat either alone on every question type. Author and label with the
+first, then --relabel-from lets the second answer the same kept questions and appends its
+two views; prepare_v6 averages all four. Run the calibration the same way, with identical
+--splits-from / --seed / --calibrate, so its rows line up:
+  prepare_teacher.py --model Qwen/Qwen3.6-35B-A3B-FP8 --out data/teacher-v9
+  prepare_teacher.py --model Qwen/Qwen3.6-35B-A3B-FP8 --out data/teacher-v9 --splits-from data/general-v6 --calibrate 6000
+  prepare_teacher.py --relabel-from data/teacher-v9 --out data/teacher-v9-2t
+  prepare_teacher.py --relabel-from data/teacher-v9 --out data/teacher-v9-2t --splits-from data/general-v6 --calibrate 6000
+FP8 checkpoints need VLLM_USE_DEEP_GEMM=0 on hosts without a CUDA toolkit.
 """
 from __future__ import annotations
 
@@ -253,6 +264,74 @@ def parse_json(text: str):
     return None
 
 
+def chat(llm, jobs, params):
+    # Thinking models (Qwen3.5/3.6) would answer "<think>" first; others ignore the switch.
+    return llm.chat(jobs, params, use_tqdm=False, chat_template_kwargs={"enable_thinking": False})
+
+
+def belief(row) -> dict:
+    """Label fields from the mean of all teacher views (two option orders per teacher)."""
+    views = row["teacher_views"]
+    p = [sum(x) / len(views) for x in zip(*views)]
+    if row["type"] == "choice":
+        keys = list(row["criteria"])
+        row.update(target_probs=dict(zip(keys, p)), label=keys[max(range(len(p)), key=p.__getitem__)])
+    elif row["type"] == "score":
+        row["hist"] = p
+    else:
+        row["value"] = p[1]
+    return row
+
+
+def relabel(llm, label_params, args, out):
+    """Second teacher: ask every kept question of --relabel-from again, in both option
+    orders, and append these views to the first teacher's. The mass and disagreement
+    filters apply to the new views too; the blind check stays the first teacher's."""
+    done_path = out / "done.txt"
+    done = set(done_path.read_text().splitlines()) if done_path.exists() else set()
+    stats = Counter()
+    pool = ThreadPoolExecutor(16)
+    for split in ("train", "val", "calib", "test"):
+        source = Path(args.relabel_from) / f"{split}.jsonl"
+        if not source.exists(): continue
+        by_image = {}
+        for line in source.read_text().splitlines():
+            r = json.loads(line); by_image.setdefault(r["image"], []).append(r)
+        todo = [p for p in by_image if p not in done]
+        with (out / f"{split}.jsonl").open("a") as fh:
+            for start in range(0, len(todo), args.chunk):
+                chunk = todo[start:start + args.chunk]
+                pics = list(pool.map(lambda p: load_image(p, args.max_edge), chunk))
+                jobs, index = [], []
+                for image, pic in zip(chunk, pics):
+                    if pic is None: stats["bad_image"] += 1; continue
+                    for r in by_image[image]:
+                        q = {"type": r["type"], "instructions": r["instructions"],
+                             **({"criteria": r["criteria"]} if "criteria" in r else {})}
+                        for prompt, order in label_views(r["state"], q):
+                            jobs.append([{"role": "user", "content": [{"type": "image_pil", "image_pil": pic},
+                                                                      {"type": "text", "text": prompt}]}])
+                            index.append((r, order))
+                views = {}
+                for (r, order), result in zip(index, chat(llm, jobs, label_params)):
+                    probs, mass = letter_probs(result.outputs[0].logprobs[0], len(order))
+                    canon = [0.0] * len(order)
+                    for j, i in enumerate(order): canon[i] = probs[j]
+                    views.setdefault(id(r), (r, []))[1].append((canon, mass))
+                for r, ((a, ma), (b, mb)) in views.values():
+                    if min(ma, mb) < args.min_mass: stats["low_mass"] += 1; continue
+                    if 0.5 * sum(abs(x - y) for x, y in zip(a, b)) > args.max_disagreement:
+                        stats["disagree"] += 1; continue
+                    r["teacher_views"] += [[round(x, 6) for x in a], [round(x, 6) for x in b]]
+                    r["relabelled_by"] = args.model
+                    fh.write(json.dumps(belief(r), ensure_ascii=False) + "\n")
+                    stats[f"kept_{r['type']}"] += 1
+                fh.flush()
+                with done_path.open("a") as d:
+                    d.write("".join(p + "\n" for p in chunk))
+                print(f"[teacher] relabel {split} {start + len(chunk)}/{len(todo)} images {dict(stats)}", flush=True)
+
+
 def calibrate(llm, label_params, args, out):
     """Teacher letter probabilities on public rows whose answer is known (exact labels
     only), written with the truth so prepare_v6 can fit one temperature per type."""
@@ -281,7 +360,7 @@ def calibrate(llm, label_params, args, out):
             jobs.append([{"role": "user", "content": [{"type": "image_pil", "image_pil": pic},
                                                       {"type": "text", "text": prompt}]}])
             index.append((n, r["type"], r["source"], truth, order))
-    results = llm.chat(jobs, label_params, use_tqdm=False)
+    results = chat(llm, jobs, label_params)
     merged = {}
     for (n, kind, source, truth, order), result in zip(index, results):
         probs, mass = letter_probs(result.outputs[0].logprobs[0], len(order))
@@ -289,11 +368,19 @@ def calibrate(llm, label_params, args, out):
         for j, i in enumerate(order): canon[i] = probs[j]
         merged.setdefault(n, {"type": kind, "source": source, "truth": truth, "views": [], "mass": []})
         merged[n]["views"].append(canon); merged[n]["mass"].append(mass)
+    rows = list(merged.values())
+    if args.relabel_from:
+        first = [json.loads(l) for l in (Path(args.relabel_from) / "teacher-calibration.jsonl").read_text().splitlines()]
+        key = lambda r: (r["type"], r["source"], r["truth"])
+        if len(first) != len(rows) or any(key(a) != key(b) for a, b in zip(first, rows)):
+            raise ValueError("calibration rows differ from --relabel-from's: use the same --splits-from, --seed, --calibrate")
+        for a, b in zip(first, rows):
+            b["views"], b["mass"] = a["views"] + b["views"], a["mass"] + b["mass"]
     with (out / "teacher-calibration.jsonl").open("w") as fh:
-        for row in merged.values(): fh.write(json.dumps(row) + "\n")
-    acc = sum(max(range(len(r["views"][0])), key=lambda i: r["views"][0][i] + r["views"][1][i]) == r["truth"]
-              for r in merged.values()) / max(1, len(merged))
-    print(f"[teacher] calibration rows {len(merged)}, teacher accuracy {acc:.3f}", flush=True)
+        for row in rows: fh.write(json.dumps(row) + "\n")
+    acc = sum(max(range(len(r["views"][0])), key=lambda i: sum(v[i] for v in r["views"])) == r["truth"]
+              for r in rows) / max(1, len(rows))
+    print(f"[teacher] calibration rows {len(rows)}, teacher accuracy {acc:.3f}", flush=True)
 
 
 def main():
@@ -312,15 +399,21 @@ def main():
     ap.add_argument("--seed", type=int, default=31)
     ap.add_argument("--calibrate", type=int, default=0,
                     help="instead: label N public calib rows with known answers, for fitting a teacher temperature")
+    ap.add_argument("--relabel-from", help="instead: second teacher for this teacher output's kept questions "
+                                           "(with --calibrate: for its teacher-calibration.jsonl)")
     args = ap.parse_args()
 
     from vllm import LLM, SamplingParams
 
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
+    engine = lambda: LLM(args.model, gpu_memory_utilization=args.gpu_memory, max_model_len=8192,
+                         limit_mm_per_prompt={"image": 1}, enable_prefix_caching=True, seed=args.seed,
+                         max_num_seqs=256)
+    label_params = SamplingParams(temperature=0.0, max_tokens=1, logprobs=20)
     if args.calibrate:
-        llm = LLM(args.model, gpu_memory_utilization=args.gpu_memory, max_model_len=8192,
-                  limit_mm_per_prompt={"image": 1}, enable_prefix_caching=True, seed=args.seed, max_num_seqs=256)
-        return calibrate(llm, SamplingParams(temperature=0.0, max_tokens=1, logprobs=20), args, out)
+        return calibrate(engine(), label_params, args, out)
+    if args.relabel_from:
+        return relabel(engine(), label_params, args, out)
     images = {}
     for split in ("train", "val", "calib", "test"):
         for line in (Path(args.splits_from) / f"{split}.jsonl").read_text().splitlines():
@@ -340,11 +433,8 @@ def main():
     print(f"[teacher] {len(todo)} images to process ({len(done)} already done)", flush=True)
     if not todo: return
 
-    llm = LLM(args.model, gpu_memory_utilization=args.gpu_memory, max_model_len=8192,
-              limit_mm_per_prompt={"image": 1}, enable_prefix_caching=True, seed=args.seed,
-              max_num_seqs=256)
+    llm = engine()
     author_params = SamplingParams(temperature=0.8, top_p=0.95, max_tokens=900, seed=args.seed)
-    label_params = SamplingParams(temperature=0.0, max_tokens=1, logprobs=20)
     stats = Counter()
     pool = ThreadPoolExecutor(16)
     files = {s: (out / f"{s}.jsonl").open("a") for s in ("train", "val", "calib", "test")}
@@ -359,7 +449,7 @@ def main():
             jobs.append([{"role": "user", "content": [{"type": "image_pil", "image_pil": pic},
                                                       {"type": "text", "text": text}]}])
             metas.append((path, split, source, pic, meta))
-        authored = llm.chat(jobs, author_params, use_tqdm=False)
+        authored = chat(llm, jobs, author_params)
         requests = []
         for (path, split, source, pic, meta), result in zip(metas, authored):
             req = validate_request(parse_json(result.outputs[0].text), meta["types"])
@@ -384,7 +474,7 @@ def main():
                     prompt, order = views_q[0]
                     jobs.append([{"role": "user", "content": [{"type": "text", "text": BLIND_NOTE + prompt}]}])
                     index.append((ri, name, order, "blind"))
-        labelled = llm.chat(jobs, label_params, use_tqdm=False)
+        labelled = chat(llm, jobs, label_params)
         views, blind = {}, {}
         for (ri, name, order, kind), result in zip(index, labelled):
             probs, mass = letter_probs(result.outputs[0].logprobs[0], len(order))
@@ -410,16 +500,8 @@ def main():
                        "teacher_views": [[round(x, 6) for x in a], [round(x, 6) for x in b]]}
                 if sightless is not None: row["teacher_blind"] = [round(x, 6) for x in sightless]
                 if name.endswith("_negated"): row["negation_of"] = name[:-len("_negated")]
-                if q["type"] == "choice":
-                    keys = list(q["criteria"])
-                    row.update(criteria=q["criteria"], target_probs=dict(zip(keys, p)),
-                               label=keys[max(range(len(p)), key=p.__getitem__)])
-                elif q["type"] == "score":
-                    row.update(criteria=q["criteria"], hist=p)
-                else:
-                    if "criteria" in q: row["criteria"] = q["criteria"]
-                    row["value"] = p[1]
-                files[split].write(json.dumps(row, ensure_ascii=False) + "\n")
+                if "criteria" in q: row["criteria"] = q["criteria"]
+                files[split].write(json.dumps(belief(row), ensure_ascii=False) + "\n")
                 stats[f"kept_{q['type']}"] += 1
         for f in files.values(): f.flush()
         with done_path.open("a") as fh:
