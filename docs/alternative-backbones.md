@@ -442,6 +442,20 @@ question is asked in two option orders. Qwen3.6 runs with `enable_thinking: Fals
 - The mean of both teachers beats each one on every type. `prepare_teacher.py
   --relabel-from` implements it: the second teacher answers the first one's kept questions,
   and `prepare_v6.soften` averages all four views. The commands are in its docstring.
+  Run for real with Qwen3-VL-30B-A3B as the second teacher:
+  - On the 400-image Qwen3.6 output it kept 1,333 of 1,440 questions. The rest were
+    dropped by the second teacher's order-disagreement and mass filters.
+  - The teachers agree on the top answer for 91% of choice, 96% of noul and 74% of score
+    questions. The noul yes-share is 0.57.
+  - The merged calibration (18,345 rows) fits these temperatures, with NLL after fitting:
+
+    | Type | Qwen3.6 alone: T / NLL | Both teachers: T / NLL |
+    |---|---|---|
+    | choice | 0.8 / 0.115 | 0.8 / 0.102 |
+    | noul | 1.5 / 0.235 | 1.3 / 0.185 |
+    | score | 1.2 / 0.417 | 1.2 / 0.386 |
+
+    Accuracy with both teachers is 0.964 / 0.930 / 0.837.
 
 Setup notes: on this host FP8 needs `VLLM_USE_DEEP_GEMM=0`, because DeepGEMM JIT-compiles
 and there is no CUDA toolkit. Qwen3.6 needs `chat_template_kwargs={"enable_thinking":
