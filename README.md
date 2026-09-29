@@ -36,7 +36,9 @@ uv run python -m peekaboolean.serve --adapter peekaboolean-500m \
 ```
 
 `--adapter` takes a local checkpoint directory or a Hugging Face repo id. The base model
-downloads on first use. `--device` picks `cuda`, `mps` or `cpu` (default: auto).
+downloads on first use. `--device` picks `cuda`, `mps` or `cpu` (default: auto). On MPS the
+model runs in fp16 (on the 42 demo images answers moved by at most 0.003, none changed; a third
+less memory); `--check` runs in fp32.
 
 A request (`requests/general.json`):
 

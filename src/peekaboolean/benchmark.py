@@ -25,7 +25,7 @@ def main():
     ap.add_argument("--out", default=None)
     ap.add_argument("--mode", choices=["auto", "shared", "single", "naive"], default="auto")
     ap.add_argument("--dtype", choices=["auto", "float32", "float16", "bfloat16"], default="auto",
-                    help="auto = bf16 on CUDA, fp32 elsewhere; float16 is the one to try on MPS")
+                    help="auto = bf16 on CUDA, fp16 on MPS, fp32 on CPU")
     ap.add_argument("--breakdown", action="store_true", help="also report median ms per serving stage")
     ap.add_argument("--target-ms", type=float, default=500, help="p95 budget per request")
     args = ap.parse_args()

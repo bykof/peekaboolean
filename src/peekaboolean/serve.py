@@ -331,8 +331,12 @@ def load(adapter: str, model_id: str | None = None, device: str = "auto", calibr
         adapter = snapshot_download(adapter, allow_patterns=["*.json", "*.safetensors", "head.pt"])
     if model_id is None:
         model_id = json.loads((Path(adapter) / "adapter_config.json").read_text())["base_model_name_or_path"]
-    model = CandidateScorer(model_id, gradient_checkpointing=False, adapter=adapter,
-                            dtype=dtype or device_dtype(device))
+    # Serving on MPS in fp16: probabilities within 0.003 of fp32 on the demo images, a
+    # third less memory, slightly faster (M1 Max, 2026-09-29). bf16 on M1 is slower than
+    # fp32. Training keeps device_dtype, since fp16 training would need loss scaling.
+    if dtype is None:
+        dtype = torch.float16 if device == "mps" else device_dtype(device)
+    model = CandidateScorer(model_id, gradient_checkpointing=False, adapter=adapter, dtype=dtype)
     if merge:
         model.backbone = model.backbone.merge_and_unload()
     model = model.to(device).eval()
