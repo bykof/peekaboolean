@@ -461,3 +461,51 @@ Setup notes: on this host FP8 needs `VLLM_USE_DEEP_GEMM=0`, because DeepGEMM JIT
 and there is no CUDA toolkit. Qwen3.6 needs `chat_template_kwargs={"enable_thinking":
 False}` in the three `llm.chat` calls of `prepare_teacher.py`, or its first token is
 `<think>`. The old teacher ignores the kwarg.
+
+### 9c. v9: v8b's recipe retrained on two-teacher data (2026-09-29/30)
+
+**Data.** The full `prepare_general` run reproduced the teacher image set exactly (61,761
+images).
+- Qwen3.6 FP8 authored and labelled 212,733 questions: 3.4 per image, against about 2.8
+  for teacher-v7. It took 6 h at ~12 min per 2,048 images.
+- Qwen3-VL-30B-A3B relabelled them in 48 min and kept 198,814. Most drops were score
+  questions whose two option orders disagreed.
+- The merged calibration (7,785 rows) is 95.2% accurate, against 94.5% for Qwen3.6
+  alone. Fitted temperatures: choice 0.7, noul 1.3, score 1.3. Fitted on the old teacher's
+  views alone, they are 1.7 / 1.9 / 2.1, which reproduces REPORT's 1.6 / 1.9 / 2.2.
+
+**Training.**
+- v9a used v7b's settings: 37,761 steps in 4.8 h, best checkpoint `step-036000`.
+- v9b is v8b's fine-tune from v9a. Early stopping kept step 0 again (REPORT §4.6).
+  `step-003000` was chosen by hand on validation: age Spearman 0.748 → 0.847, child
+  0.977 → 0.991, gender 0.969 → 0.964, selection NLL unchanged.
+
+**Full test split of general-v9b (21,996 questions, 512 px).** Cells are the metric with
+NLL in brackets. v8b is the v0.1.0 release.
+
+| Group | n | Metric | v8b | v9b (step 3000) |
+|---|---|---|---|---|
+| teacher choice | 3,460 | acc | 0.789 (0.588) | **0.830** (0.519) |
+| teacher noul | 3,249 | bal. acc | 0.837 (0.431) | **0.892** (0.324) |
+| teacher score | 2,856 | Spearman | 0.745 (1.051) | **0.779** (0.997) |
+| the same, labels from the old teacher only | | | 0.777 / 0.824 / 0.716 | **0.817 / 0.879 / 0.742** |
+| VQAv2 choice / noul | 2,006 / 1,160 | acc / bal. acc | 0.909 / 0.794 | 0.914 / 0.798 |
+| DocVQA / ChartQA / TextVQA choice | 1,538 / 530 / 417 | acc | 0.870 / 0.875 / 0.966 | 0.860 / 0.872 / 0.964 |
+| AI2D / CLEVR choice | 253 / 603 | acc | 0.905 / 0.801 | 0.885 / 0.769 |
+| Screen2Words choice | 386 | acc | 0.940 | 0.948 |
+| counting rubrics VQAv2 / CLEVR | 315 / 119 | Spearman | 0.788 / 0.777 | 0.779 / 0.755 |
+| FairFace age / child / gender | 2,014 / 885 / 1,503 | Spearman / bal. acc | 0.808 / 0.972 / 0.960 | 0.805 / 0.968 / 0.960 |
+| selection NLL (teacher ×3) | | | 0.552 | **0.507** |
+| macro NLL | | | **0.567** | 0.574 |
+
+- **Teacher groups: +4 to +5.5 points.** This holds when the test labels come only from the
+  old teacher, whose labels v8b was trained on. The gain is therefore not an artefact of
+  grading against the new labeller. One bias remains: the test questions are written by
+  Qwen3.6, in the style v9 trained on.
+- **Public groups: equal within noise.** VQAv2, TextVQA, ChartQA, Screen2Words and FairFace
+  are unchanged. CLEVR choice (−3.2, n = 603), AI2D (−2.0, n = 253) and DocVQA (−1.0) are
+  the largest losses, each roughly one standard error of the unpaired difference.
+- **Macro NLL is slightly worse.** It weights tiny groups equally: DocVQA noul n = 4,
+  ChartQA noul n = 22, and the aesthetics groups, which neither model learned.
+- **Serving cost:** the backbone and head are unchanged, so latency is unchanged. The host
+  benchmark gives 91 ms p95 for request6 on the RTX PRO 6000.
