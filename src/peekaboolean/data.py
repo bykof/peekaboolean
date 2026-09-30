@@ -398,6 +398,12 @@ Question: {instructions}{wording}
 Answer yes or no."""
 
 
+# Request text is never markup: "<image>" in it would make the processor count a second image,
+# and "<|im_end|>" would close the user turn. A space after the "<" keeps the text readable and
+# spells no backbone's special token. The templates themselves contain no "<".
+SPECIAL_TAG = re.compile(r"<(?=\|?/?[A-Za-z_][\w|-]*>)")
+
+
 def candidate_prompts(example: Example, style: str = "judge") -> list[str]:
     """One prompt per candidate. Separate from the processor so a server, a test or a
     diff can see the exact text the model was trained on without loading a model."""
@@ -408,17 +414,14 @@ def candidate_prompts(example: Example, style: str = "judge") -> list[str]:
         prompt = NOUL_DIRECT.format(state=example.state.strip(), instructions=example.instructions.strip(),
                                     wording=wording)
         # The can't-tell row is a proposed answer like any option's, judged by the same head.
-        return [prompt, prompt] + [PROMPT_YESNO.format(state=example.state.strip(),
-                                                       instructions=example.instructions.strip(), candidate=c)
-                                   for c in example.candidates[2:]]
-    return [
-        PROMPTS[style].format(
-            state=example.state.strip(),
-            instructions=example.instructions.strip(),
-            candidate=cand,
-        )
-        for cand in example.candidates
-    ]
+        prompts = [prompt, prompt] + [PROMPT_YESNO.format(state=example.state.strip(),
+                                                          instructions=example.instructions.strip(), candidate=c)
+                                      for c in example.candidates[2:]]
+    else:
+        prompts = [PROMPTS[style].format(state=example.state.strip(), instructions=example.instructions.strip(),
+                                         candidate=cand)
+                   for cand in example.candidates]
+    return [SPECIAL_TAG.sub("< ", p) for p in prompts]
 
 
 def candidate_signs(example: Example, style: str = "judge") -> list[float]:
