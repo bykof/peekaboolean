@@ -11,8 +11,12 @@ dependencies = [
     "datasets>=5.0.1",
     "peft==0.21.0",
     "pillow>=10",
-    "torch==2.11.0",
-    "torchvision==0.26.0",
+    # macOS runs 2.14: its Metal prefill attention (added in 2.13) serves request6 22%
+    # faster on an M1 Max with fp16 answers unchanged. The cu128 index below stops at 2.11.
+    "torch==2.11.0; sys_platform != 'darwin'",
+    "torch==2.14.0; sys_platform == 'darwin'",
+    "torchvision==0.26.0; sys_platform != 'darwin'",
+    "torchvision==0.29.0; sys_platform == 'darwin'",
     "transformers==5.17.0",
 ]
 
