@@ -121,8 +121,12 @@ def author_prompt(rng: random.Random, grounded: bool = False) -> tuple[str, dict
     lines = []
     for i, t in enumerate(types, 1):
         if i - 1 == cant_tell:
-            lines.append(f"{i}. {t} whose honest answer from this image and state CANNOT be determined: ask about "
-                         "something hidden, cut off, too small to read, outside the frame, or not given in the state")
+            # Asked only "whose answer cannot be determined", the teacher writes questions about
+            # visibility ("is the base fully in view?"), which have an answer (smoke test, v0.4).
+            lines.append(f"{i}. {t} asking for one concrete fact that this image and state do NOT reveal, so that "
+                         "no option can honestly be chosen: a name, number, colour, text or detail that is hidden, "
+                         "cut off, too small to read, behind something or outside the frame. Ask for the fact itself, "
+                         "never whether it is visible, and make every option a concrete answer")
             continue
         if t == "choice":
             k = rng.choice([2, 3, 3, 4, 4, 5, 6])
@@ -144,6 +148,9 @@ def author_prompt(rng: random.Random, grounded: bool = False) -> tuple[str, dict
                          + (" (give custom true/false wording)" if wording else "")
                          + (f'; then ALSO add a question named "<same name>_negated" asking the logical opposite'
                             if negated else ""))
+    # The labeller offers can't-tell itself; an authored "unknown" option would split that mass.
+    no_unknown = ("\n- Never write an option or level such as \"unknown\", \"not visible\" or \"cannot be "
+                  "determined\": that answer is always offered separately.") if grounded else ""
     text = f"""You write evaluation requests for an image-understanding API. The caller is {use_case}.
 Look carefully at the image, then write ONE request about it as JSON.
 
@@ -175,7 +182,7 @@ Rules:
 - score: levels are an ordered rubric from lowest to highest of one clear property (amount, quality,
   severity, legibility, clutter, size, confidence...). Each level is a short descriptive phrase.
 - noul: a yes/no question. "criteria" is optional; omit it unless custom wording was requested.
-  For an answer of false, ask about something plausible that is absent, wrong or different here.
+  For an answer of false, ask about something plausible that is absent, wrong or different here.{no_unknown}
 - If people are visible, make at least one question about a specific person ("the woman", "the child",
   "the man on the left"): whether such a person is present, what they do or wear, or their approximate
   age (as a score whose levels are age ranges in years, youngest first).
