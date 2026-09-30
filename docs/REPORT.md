@@ -62,6 +62,7 @@ dominates there. `serve --check` asserts that all paths agree within 1e-3 in fp3
 | (side test) | Qwen3.5-0.8B | untrained, yes/no head | 5–10 s per request on the Mac; rejected |
 | v8/v8b | SmolVLM-500M | fine-tune v7b on FairFace age, gender, child/adult | age Spearman 0.74 → 0.81, child 0.93 → 0.97, gender 0.88 → 0.96; general groups unchanged |
 | v9/v9b | SmolVLM-500M | v8b's recipe; teacher v9: Qwen3.6-35B-A3B writes and labels, Qwen3-VL-30B-A3B labels again, mean of both | on the v9b test split, teacher groups +3 to +5.5 points over v8b, also graded by the old teacher alone; public groups and FairFace unchanged (release 0.2.0) |
+| v10/v10b | LFM2.5-VL-450M | v9a's and v9b's data and recipe on a new backbone ([newer-models-and-jev.md](newer-models-and-jev.md)) | v10b against v9b on the same test split: teacher choice / noul / score +6 / +3 / +9 points, CLEVR +16, DocVQA +8, FairFace age Spearman 0.81 → 0.86, selection NLL 0.507 → 0.424; AI2D and Screen2Words 2–3 points lower. request6 on the Mac takes 200 ms, against v0.2.0's 243 ms through the same path (180 ms through `tree`, which LFM2 cannot use) (release 0.3.0) |
 
 ## 4. Findings
 
@@ -165,7 +166,26 @@ data with v8b's recipe, v9b beats v8b on the teacher groups of the v9b test spli
 gain holds when those rows are graded by Qwen3-VL-30B-A3B's labels alone, the labeller
 v8b learned from.
 
-### 4.8 Aesthetics: not learnable at this scale
+### 4.8 A newer backbone beat a better teacher
+
+v0.2.0's teacher upgrade moved the teacher groups by 3 to 5.5 points (§4.7). Swapping SmolVLM-500M
+for LFM2.5-VL-450M, with v9a's data, settings and seed unchanged, moved them by another 3 to 7. On
+the v9b test split:
+- teacher choice 0.829 → 0.879, noul 0.895 → 0.921, score 0.780 → 0.851;
+- CLEVR choice 0.778 → 0.925, CLEVR count rubrics 0.756 → 0.902, DocVQA 0.869 → 0.940;
+- AI2D (−3.1, n = 253) and Screen2Words (−1.6, n = 386) are about one standard error lower.
+
+The new model also learned faster:
+- At step 0 it was ahead on 13 of 16 validation groups, with the untrained yes/no head.
+- At step 3,000 of 37,761 it was ahead of v9a's final checkpoint.
+- Early stopping kept step 15,000.
+
+The backbone is also cheaper to serve: its 16-layer LM, 10 of whose layers are short convolutions,
+runs the 28 option suffixes of request6 in 120 ms, against 187 ms for SmolLM2's 32 layers. That
+holds even with 2.5–4× more visual tokens. The screen of eight candidate backbones and their Mac
+timings are in [newer-models-and-jev.md](newer-models-and-jev.md) §3.
+
+### 4.9 Aesthetics: not learnable at this scale
 
 AVA and AADB aesthetic scores stayed below a text-only prior in v5 and v6. From v7 on they were dropped from training. The
 teacher's questions about those images (sharpness, lighting, content) were kept.
@@ -185,8 +205,9 @@ teacher's questions about those images (sharpness, lighting, content) were kept.
 
 "Question prior" is a text-only baseline that sees the question and options but not
 the image. Per-source numbers are in the README and in the JSON reports on the release.
-Results for v9b (release 0.2.0), with v8b re-scored on the same rows, are in the README
-and in [alternative-backbones.md](alternative-backbones.md) §9c.
+Results for v9b (release 0.2.0), with v8b re-scored on the same rows, are in
+[alternative-backbones.md](alternative-backbones.md) §9c. v10b (release 0.3.0) against v9b on
+those rows is in the README and in [newer-models-and-jev.md](newer-models-and-jev.md) §3c.
 
 ## 6. Limitations
 
@@ -201,7 +222,7 @@ and in [alternative-backbones.md](alternative-backbones.md) §9c.
   decisions about individual people.
 - **Independent options.** Contrast questions ("the larger one") are out of scope.
 
-## 7. Reproducing v8b and v9b
+## 7. Reproducing v8b, v9b and v10b
 
 Commands as run; each stage was a detached job (`python -m peekaboolean.background start
 --run-dir runs/<name> -- <command>`).
@@ -267,6 +288,30 @@ v9a's best checkpoint was step 36,000. For v9b, early stopping again kept step 0
 Step 3,000 was chosen by hand on validation. `VLLM_USE_DEEP_GEMM=0` is needed for FP8
 checkpoints on hosts without a CUDA toolkit.
 
+v10 and v10b (release 0.3.0) are v9a and v9b on LFM2.5-VL-450M: the same data, settings and
+seed. LFM2 batches carry more tensors, and 1,024 file descriptors run out between DataLoader
+workers, hence the `ulimit`.
+
+```bash
+ulimit -n 65536
+python -m peekaboolean.pipeline --data data/general-v9 --run runs/v10-lfm25 --model LiquidAI/LFM2.5-VL-450M \
+  --head yesno --epochs 2 --max-hours 20 --eval-every 1000 --patience 6 --eval-limit 4000 --workers 12 \
+  --micro 8 --max-edge 512 --image-sizes 256,384,512,512 --ablation 240 --eval-teacher-weight 3
+python -m peekaboolean.train_general --train data/general-v9b/train.jsonl --val data/general-v9b/val.jsonl \
+  --out runs/v10b --model LiquidAI/LFM2.5-VL-450M --head yesno --init-adapter runs/v10-lfm25/step-015000 \
+  --lr 3e-5 --epochs 0.5 --max-hours 6 --eval-every 1000 --log-every 25 --eval-limit 4000 --patience 4 \
+  --workers 12 --micro 8 --max-edge 512 --image-sizes 256,384,512,512 --ablation 240 --eval-teacher-weight 3
+# write the picked step to runs/v10b/best.txt (rule below), then calibrate and test it
+python -m peekaboolean.postprocess --run runs/v10b --data data/general-v9b
+python -m peekaboolean.full_test --adapter runs/v10b/step-008000 --data data/general-v9b --out full-test-v10b.json
+```
+
+v10's early stopping kept step 15,000. For v10b the pick rule was fixed before the run, because
+for v9b selection NLL alone kept step 0 (§4.6): the best mean of FairFace age Spearman, child and
+gender balanced accuracy among checkpoints whose selection NLL is at most step 0's + 0.005.
+It picked step 8,000: selection NLL 0.4065 against step 0's 0.4102, and the best FairFace mean.
+Early stopping on selection NLL alone would have kept step 5,000 (0.3991).
+
 The teacher needs `VLLM_USE_FLASHINFER_SAMPLER=0` on hosts without `nvcc`. The teacher
 images include AVA and AADB, which must be downloaded separately (`prepare_ava.py`,
 `prepare_aadb.py`).
@@ -274,6 +319,12 @@ images include AVA and AADB, which must be downloaded separately (`prepare_ava.p
 ## 8. Next steps
 
 - A small human-labelled set of real requests as the acceptance test
+- A trained "can't tell", and requests whose state is a record or a rule the image must be
+  checked against: `prepare_teacher.py --unknown` and `train_general.py --unknown`, the v0.4.0
+  candidate ([newer-models-and-jev.md](newer-models-and-jev.md) §8b, §9)
 - Contrast between options (a second pass that sees all options together)
-- An MLX port for the Mac, which would make a larger backbone affordable
-- A commercially licensable retrain without DocVQA, ChartQA, AVA and AADB
+- The prompt rewrite that leaves each option only its own text: about −57% latency, needs a
+  fine-tune ([newer-models-and-jev.md](newer-models-and-jev.md) §5). An MLX port no longer looks
+  faster than torch 2.14 on MPS (§1 there)
+- A commercially licensable retrain without DocVQA, ChartQA, AVA and AADB. LFM2.5's licence caps
+  commercial use by revenue, so that retrain needs an Apache or MIT backbone (SmolVLM, InternVL3-1B)

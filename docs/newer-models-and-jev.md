@@ -227,8 +227,48 @@ python -m peekaboolean.pipeline --data data/general-v9 --run runs/v10-lfm25 --mo
 | 36,000 (best) | v9a, the base of v0.2.0 | 0.506 | 0.818 / 0.874 / 0.772 | 0.873 | 0.815 | 0.841 | 0.733 |
 
 After 3,000 of 37,761 steps, LFM2.5-VL-450M is ahead of v9a's final checkpoint on every
-column but the counting rubric (n = 164). The run continues; its full test split will be
-compared with v9a's `full-test-v9a.json`.
+column but the counting rubric (n = 164). Early stopping kept step 15,000 (patience 6, so the
+run stopped at 21,000). This is v10. On every row of the v9b test split (21,996 questions,
+512 px), against v9a, which was trained on the same data:
+
+| Group (n) | metric | v9a (SmolVLM-500M) | v10 (LFM2.5-VL-450M) |
+|---|---|---|---|
+| teacher choice / noul / score (3,460 / 3,249 / 2,856) | acc. / bal. acc. / Spearman | 0.829 / 0.895 / 0.780 | **0.879 / 0.921 / 0.851** |
+| VQAv2 choice / noul (2,006 / 1,160) | acc. / bal. acc. | 0.914 / 0.799 | 0.925 / 0.806 |
+| DocVQA / ChartQA / TextVQA choice (1,538 / 530 / 417) | accuracy | 0.869 / 0.874 / 0.962 | **0.940 / 0.906** / 0.964 |
+| AI2D / CLEVR / Screen2Words choice (253 / 603 / 386) | accuracy | 0.897 / 0.778 / 0.943 | 0.866 / **0.925** / 0.927 |
+| counting rubrics VQAv2 / CLEVR (315 / 119) | Spearman | 0.788 / 0.756 | 0.787 / **0.902** |
+| FairFace age / child / gender (2,014 / 885 / 1,503), not trained on | Spearman / bal. acc. | 0.755 / 0.964 / 0.937 | 0.829 / 0.965 / 0.944 |
+| selection / macro NLL | | 0.508 / 0.573 | **0.434 / 0.489** |
+| wrong-image ΔNLL | | 1.085 | 1.369 |
+
+AI2D (−3.1 points) and Screen2Words (−1.6) are about one standard error lower; everything
+else is level or better. The larger wrong-image gap says the new model leans on the image
+more.
+
+v10b repeats v9b's FairFace fine-tune from v10's step 15,000: `general-v9b`, lr 3e-5, half an
+epoch, patience 4. A pick rule was fixed before the run: the best mean of FairFace age Spearman,
+child and gender balanced accuracy among checkpoints whose selection NLL is at most step 0's +
+0.005. It picked step 8,000; early stopping on selection NLL alone would have kept step 5,000.
+v9b's validation got worse after step 0 (REPORT §4.6). v10b's instead fell from 0.410 to 0.399
+at step 5,000, and every checkpoint from step 3,000 on was inside the window.
+
+| Group (full test split) | v9b (release 0.2.0) | v10 | v10b (release 0.3.0) |
+|---|---|---|---|
+| teacher choice / noul / score | 0.830 / 0.892 / 0.779 | 0.879 / 0.921 / 0.851 | **0.888** / 0.920 / **0.866** |
+| FairFace age / child / gender | 0.805 / 0.968 / 0.960 | 0.829 / 0.965 / 0.944 | **0.860 / 0.981 / 0.971** |
+| CLEVR / DocVQA choice | 0.769 / 0.860 | 0.925 / 0.940 | **0.934 / 0.941** |
+| AI2D / Screen2Words choice | **0.885 / 0.948** | 0.866 / 0.927 | 0.862 / 0.922 |
+| selection / macro NLL | 0.507 / 0.574 | 0.434 / 0.489 | **0.424 / 0.485** |
+| wrong-image ΔNLL | 1.178 | 1.369 | 1.642 |
+
+The fine-tune added 3 points of age Spearman and 1.6 to 2.7 points of child and gender accuracy
+to v10. No other group lost more than half a point; teacher score rose 1.5, CLEVR choice 0.9
+and the CLEVR count rubrics 2.6 (n = 119).
+Serving v10b:
+- Mac (M1 Max, MPS fp16, torch 2.14): request6 200 / 202 ms p50 / p95. Against CPU fp32 on the
+  42 demo images, the largest probability difference is 0.0078 and no answer changes.
+- RTX PRO 6000 (bf16): 57 / 59 ms.
 - Training throughput: 22 questions/s against v9a's 35. LFM2.5 has 2.5–4× more visual tokens.
 - transformers falls back to the reference PyTorch `causal_conv1d`, because the CUDA
   package would need a CUDA toolkit on the host.
@@ -448,13 +488,13 @@ unless marked as measured.
   maintainer.
 - The dev and calibration splits have gold: 254 items, 24 of them "can't tell".
 
-| Track (dev + calibration) | n | v0.2.0 (SmolVLM) | LFM2.5-VL-450M, step 9,000 (uncalibrated) |
-|---|---|---|---|
-| all | 254 | 104 (40.9%) | 110 (43.3%) |
-| visual | 103 | 50 (48.5%) | 59 (57.3%) |
-| joint (photo + record or rule) | 113 | 41 (36.3%) | 40 (35.4%) |
-| text only, answered against a blank image | 38 | 13 (34.2%) | 11 (28.9%) |
-| of these, "can't tell" references | 24 | 0 | 0 |
+| Track (dev + calibration) | n | v0.2.0 (SmolVLM) | LFM2.5-VL-450M, step 9,000 (uncalibrated) | v0.3.0 (v10b) |
+|---|---|---|---|---|
+| all | 254 | 104 (40.9%) | 110 (43.3%) | 110 (43.3%) |
+| visual | 103 | 50 (48.5%) | 59 (57.3%) | 58 (56.3%) |
+| joint (photo + record or rule) | 113 | 41 (36.3%) | 40 (35.4%) | 43 (38.1%) |
+| text only, answered against a blank image | 38 | 13 (34.2%) | 11 (28.9%) | 9 (23.7%) |
+| of these, "can't tell" references | 24 | 0 | 0 | 0 |
 
 For scale, on the test split: SmolVLM2-2.2B scores 28.7%, untuned Qwen3.5-2B 60.2%, imajev-2b
 70.3–71.7% and imajev-4b 83.9%. Different split, so compare loosely.
@@ -494,25 +534,22 @@ For scale, on the test split: SmolVLM2-2.2B scores 28.7%, untuned Qwen3.5-2B 60.
 
 ## 9. Next steps
 
-1. **Finish `runs/v10-lfm25`**, then run `full_test` on the v9b test split and compare it
-   with `full-test-v9a.json`, which uses the same training data.
-2. **Fine-tune it on `general-v9b`** with v9b's recipe (FairFace; lr 3e-5, half an epoch).
-   Pick the checkpoint with group weights, not by hand (REPORT §4.6). Then:
-   - `postprocess` for calibration;
-   - `serve --check` and `benchmark.py` on the M1 Pro;
-   - a model card that states the LFM Open License.
-
-   That is a v0.3.0 candidate.
+1. **Finish `runs/v10-lfm25` and compare it with v9a: done** (§3c).
+2. **Fine-tune it on `general-v9b` with v9b's recipe: done.** v10b is release 0.3.0 (§3c),
+   with a model card that states the LFM Open License. Still to do: `benchmark.py` on the
+   M1 Pro.
 3. **torch 2.14 on macOS: done.** Still to do: measure it on the M1 Pro.
 4. **Tree-packed scoring: done** for SmolVLM and InternVL. LFM2 would need a per-question
    cache pass instead.
 5. **The prompt rewrite.** It is a fine-tune experiment on the chosen backbone, compared on
    the full test split. For LFM2 the latency gain also needs the per-question pass.
 6. **Jev.**
-   - Add `POST /v1/systemone` with the Jev envelope to the local server.
-   - Score the public ImajevBench test split.
-   - Publishing the weights on the Hub and asking Image JevBench to evaluate them would give
-     the first third-party numbers.
+   - `POST /v1/systemone` with the Jev envelope in the local server: done.
+   - The ImajevBench test run of v0.3.0 went to the maintainer for scoring, as an issue on
+     [mohit67890/imajev](https://github.com/mohit67890/imajev/issues).
+   - The weights are public on the Hub as
+     [bykof/peekaboolean-450m](https://huggingface.co/bykof/peekaboolean-450m), which Image
+     JevBench re-scores on its own schedule; its paid priority evaluation was not requested.
 
    On that board the smallest image entries are 0.8B (0.35–0.65 public accuracy), and
    imajev-2B reaches 0.72.
@@ -521,5 +558,11 @@ For scale, on the test split: SmolVLM2-2.2B scores 28.7%, untuned Qwen3.5-2B 60.
    route, together with imajev's licence-audited image sources.
 8. **LFM2.5-VL-1.6B, only if the target moves** to newer Macs or GPU serving. A 3,000-step run
    on the same data sizes its gain after training.
-9. **Escape placeholder strings** (`<image>`, `<video>`, `<IMG_CONTEXT>`) in `render` for
-   untrusted request text.
+9. **Escape placeholder strings in request text: done.** `data.candidate_prompts` puts a space
+   after the `<` of any tag-shaped text, so `<image>` no longer makes the processor count a
+   second image and `<|im_end|>` no longer closes the user turn.
+10. **A trained can't-tell (§8b, items 1 and 2).** The code is in (`--unknown`). A 96-image
+    smoke test fixed the author prompt: asked for a question "whose answer cannot be
+    determined", the teacher asked whether things were visible, which has an answer. Asked
+    for a concrete fact the image hides, 9 of 22 such questions got most of the can't-tell
+    mass, against 1 of 291 other questions. The full teacher run and v11 follow.

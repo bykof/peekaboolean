@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A local web page over `serve.evaluate`: drop images, write typed questions, read answers.
 
-  uv run python -m peekaboolean.ui --adapter peekaboolean-500m
+  uv run python -m peekaboolean.ui --adapter peekaboolean-450m
 
 The page (web/index.html) sends one image per POST /api/answer, base64 in a JSON body
 beside the request, and gets back exactly what `serve` prints. The model is loaded once;
@@ -132,7 +132,7 @@ def make_handler(answer, info: dict):
 
 def main():
     ap = argparse.ArgumentParser(description="Local web UI for typed visual questions")
-    ap.add_argument("--adapter", default="peekaboolean-500m", help="checkpoint directory or Hub repo id")
+    ap.add_argument("--adapter", default="peekaboolean-450m", help="checkpoint directory or Hub repo id")
     ap.add_argument("--model", default=None, help="inferred from adapter when omitted")
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
     ap.add_argument("--max-edge", type=int, default=512, help="calibrated at 256, 384 and 512")

@@ -14,15 +14,20 @@ The model never generates text. It scores the options the caller wrote, so it on
 returns answers you asked for, the probabilities are calibrated, and a rubric the model
 never saw in training works as well as a familiar one.
 
-- Backbone: [SmolVLM-500M-Instruct](https://huggingface.co/HuggingFaceTB/SmolVLM-500M-Instruct),
-  LoRA on the language model, vision tower frozen
+- Backbone: [LFM2.5-VL-450M](https://huggingface.co/LiquidAI/LFM2.5-VL-450M), LoRA on the
+  language model, vision tower frozen (v0.2.0 and earlier: SmolVLM-500M-Instruct)
 - Head: the backbone's own `logit(Yes) − logit(No)` for "is this proposed answer correct?"
 - Training: distilled from two local teachers plus public VQA data. Qwen3.6-35B-A3B
   wrote and labelled requests, and Qwen3-VL-30B-A3B labelled them again.
-- Latency: about 400 ms p95 for a six-question request (28 options) on an M1 Pro
-  (MPS, 512 px); about 60 ms on a desktop GPU
-- Weights: [GitHub release v0.2.0](https://github.com/bykof/peekaboolean/releases/tag/v0.2.0) (CC BY-NC 4.0, see [Licence](#licence));
-  the previous checkpoint is still at [v0.1.0](https://github.com/bykof/peekaboolean/releases/tag/v0.1.0)
+- Latency: 200 ms p50 (202 ms p95) for a six-question request (28 options) on an M1 Max
+  (MPS, fp16, torch 2.14, 512 px); 59 ms p95 on an RTX PRO 6000. The M1 Pro, where v0.2.0
+  measured about 400 ms p95, has not been re-measured
+- Weights: [GitHub release v0.3.0](https://github.com/bykof/peekaboolean/releases/tag/v0.3.0) and
+  [bykof/peekaboolean-450m](https://huggingface.co/bykof/peekaboolean-450m) (CC BY-NC 4.0, see [Licence](#licence));
+  earlier checkpoints stay at [v0.2.0](https://github.com/bykof/peekaboolean/releases/tag/v0.2.0) and
+  [v0.1.0](https://github.com/bykof/peekaboolean/releases/tag/v0.1.0)
+- Jev: the request format is TypeSafe's [Jev](https://docs.typesafe.ai/models) with an image; the local
+  server also answers `POST /v1/systemone`
 
 How it was built and what did and did not work: [docs/REPORT.md](docs/REPORT.md).
 
@@ -31,15 +36,16 @@ How it was built and what did and did not work: [docs/REPORT.md](docs/REPORT.md)
 ```bash
 git clone https://github.com/bykof/peekaboolean && cd peekaboolean
 uv sync --python 3.13
-curl -L https://github.com/bykof/peekaboolean/releases/download/v0.2.0/peekaboolean-500m.tar.gz | tar xz
-uv run python -m peekaboolean.serve --adapter peekaboolean-500m \
+curl -L https://github.com/bykof/peekaboolean/releases/download/v0.3.0/peekaboolean-450m.tar.gz | tar xz
+uv run python -m peekaboolean.serve --adapter peekaboolean-450m \
   --image photo.jpg --request requests/general.json --max-edge 512
 ```
 
-`--adapter` takes a local checkpoint directory or a Hugging Face repo id. The base model
-downloads on first use. `--device` picks `cuda`, `mps` or `cpu` (default: auto). On MPS the
-model runs in fp16 (on the 42 demo images answers moved by at most 0.003, none changed; a third
-less memory); `--check` runs in fp32.
+`--adapter` takes a local checkpoint directory or a Hugging Face repo id
+(`--adapter bykof/peekaboolean-450m` skips the download above). The base model downloads on
+first use. `--device` picks `cuda`, `mps` or `cpu` (default: auto). On MPS the model runs in
+fp16: on the 42 demo images, answers moved by at most 0.008 against CPU fp32 and none changed.
+`--check` runs in fp32.
 
 A request (`requests/general.json`):
 
@@ -96,7 +102,7 @@ From Python, load once and reuse:
 
 ```python
 from peekaboolean.serve import load, evaluate
-model, processor, calibration = load("peekaboolean-500m", device="mps", merge=True)
+model, processor, calibration = load("peekaboolean-450m", device="mps", merge=True)
 result = evaluate(model, processor, state, questions, "photo.jpg", calibration, max_edge=512)
 ```
 
@@ -108,7 +114,7 @@ the other questions in the request.
 ### Local UI
 
 ```bash
-uv run python -m peekaboolean.ui --adapter peekaboolean-500m
+uv run python -m peekaboolean.ui --adapter peekaboolean-450m
 ```
 
 Opens a page on http://127.0.0.1:8765. Drop a folder or images on it (or choose them,
@@ -117,6 +123,16 @@ answer; the manifest lists every answer with its probabilities, and Export JSON 
 `{request, results, errors}`. Choice options are one per line as `key: description`,
 score levels one per line lowest first, yes/no wording optional as `yes: …` / `no: …`.
 The JSON view edits the same request in the format above. Images stay on the machine.
+
+The same server answers `POST /v1/systemone`: TypeSafe's Jev request with the `images`
+extension that [imajev](https://github.com/mohit67890/imajev) and its ImajevBench harness use
+(data URLs or base64, one image here), in Jev's `{model, answers, usage}` envelope:
+
+```bash
+curl -s http://127.0.0.1:8765/v1/systemone -H 'Content-Type: application/json' \
+  -d "{\"state\": \"\", \"questions\": {\"person\": {\"type\": \"noul\", \"instructions\": \"Is a person visible?\"}},
+       \"images\": [\"data:image/jpeg;base64,$(base64 < photo.jpg | tr -d '\n')\"]}"
+```
 
 ![The UI sorting 42 Wikimedia Commons images in real time](docs/img/ui-demo.gif)
 
@@ -144,8 +160,9 @@ mkdir -p data/demo && tail -n +2 docs/demo-images.tsv | while IFS=$'\t' read -r 
   requests and `shared` above
 - `naive`: one forward pass per question; the reference path
 
-On an M1 Max (MPS, fp16, torch 2.14, 512 px), request6 takes 180 ms p50 through `tree`
-against 247 ms through `shared`.
+On an M1 Max (MPS, fp16, torch 2.14, 512 px), request6 on v0.2.0's SmolVLM takes 180 ms
+p50 through `tree` against 247 ms through `shared`. LFM2.5-VL (v0.3.0) has short-convolution
+layers, so `auto` scores request6 through `shared` there: 200 ms p50.
 
 `serve --check` asserts that the three agree. `python -m peekaboolean.benchmark` measures warm
 latency per image size and request shape (`--breakdown` for per-stage times).
@@ -155,9 +172,33 @@ Calibration temperatures were fitted separately for 256, 384 and 512 px. Serve a
 
 ## Results
 
-v0.2.0 (v9b) against v0.1.0 (v8b). Both models are scored on the same rows: the
+v0.3.0 (v10b) against v0.2.0 (v9b). Both models are scored on the same rows: the
 held-out test split of v0.2.0, 512 px, 21,996 questions. Image splits are by content
 hash, so no test image was seen in training.
+
+| Group | v0.2.0 (v9b) | **v0.3.0 (v10b)** |
+| --- | --- | --- |
+| teacher choice / noul / score (acc. / bal. acc. / Spearman) | 0.83 / 0.89 / 0.78 | **0.89 / 0.92 / 0.87** |
+| VQAv2 choice / noul | 0.91 / 0.80 | 0.92 / 0.81 |
+| DocVQA / ChartQA / TextVQA choice | 0.86 / 0.87 / 0.96 | **0.94 / 0.90** / 0.97 |
+| AI2D / CLEVR / Screen2Words choice | 0.89 / 0.77 / 0.95 | 0.86 / **0.93** / 0.92 |
+| counting rubrics VQAv2 / CLEVR, Spearman | 0.78 / 0.75 | 0.79 / **0.93** |
+| FairFace age Spearman / child / gender | 0.81 / 0.97 / 0.96 | **0.86 / 0.98 / 0.97** |
+| selection NLL (lower is better) | 0.507 | **0.424** |
+
+- **Same data, new backbone.** v10b is v9b's data and recipe on LFM2.5-VL-450M.
+- **Teacher groups** are requests written by Qwen3.6 and measure agreement with the
+  teachers, not with ground truth.
+- **Public groups** gain most on CLEVR (+16 points) and DocVQA (+8). AI2D (−2.4, n = 253)
+  is about one standard error lower, and Screen2Words (−2.6, n = 386) about two.
+- **No "can't tell" yet**: ImajevBench's Unknown items still score 0 (see Limitations).
+- **Details:** training curves and the comparison with v9a are in
+  [docs/newer-models-and-jev.md](docs/newer-models-and-jev.md) §3c. The JSON reports are
+  attached to the release.
+
+### v0.2.0
+
+v0.2.0 (v9b) against v0.1.0 (v8b), on the same rows as above.
 
 | Group | v0.1.0 (v8b) | **v0.2.0 (v9b)** |
 | --- | --- | --- |
@@ -227,6 +268,9 @@ for one noul, 230 ms for the six-question request.
   answers such questions for drawings and cartoon characters.
 - Options are scored independently, so the model cannot compare options that differ
   only by contrast ("the larger one").
+- There is no "can't tell" answer yet. Every answer is a distribution over your options,
+  including answers the image does not show; `/v1/systemone` reports
+  `unknown_probability` 0 and `abstained` false.
 
 ## Training your own
 
@@ -237,7 +281,8 @@ Everything that produced this checkpoint is in `src/peekaboolean`. The pipeline,
 2. `prepare_teacher.py`: a local Qwen3.6-35B-A3B (vLLM) writes one request per image
    and labels it. `--relabel-from` lets a second teacher (Qwen3-VL-30B-A3B) label the
    same questions, and the two are averaged. See the module docstring; it runs in its own
-   vLLM environment.
+   vLLM environment. `--unknown` (for the next release) adds a can't-tell option to every
+   labelling view and record- and rule-based states
 3. `prepare_v6.py`: mixes public and teacher rows, adds counting rubrics, tempers the
    teacher's probabilities against rows with known answers
 4. `prepare_age.py`: FairFace age, gender and child/adult questions
@@ -246,18 +291,21 @@ Everything that produced this checkpoint is in `src/peekaboolean`. The pipeline,
 6. `full_test.py`: score a checkpoint on every row of a test split
 
 The exact settings for each version are in [docs/REPORT.md](docs/REPORT.md). All runs
-used one RTX PRO 6000 (96 GB).
+used one RTX PRO 6000 (96 GB). Training an LFM2-VL backbone needs `ulimit -n 65536`: its
+batches carry more tensors, and 1,024 file descriptors run out between DataLoader workers.
 `docs/legacy-qwen-v1-v2.md` describes the earlier Qwen3-VL-4B aesthetics experiments
 (`train.py`, `prepare_ava.py`, `prepare_aadb.py`, ...).
 
 ## Licence
 
 - Code: Apache-2.0 ([LICENSE](LICENSE))
-- Weights: CC BY-NC 4.0. The base model and the teacher are Apache-2.0, but some
-  training data only allows research use (DocVQA; AVA and AADB images, which the
-  teacher wrote questions about) or carries GPL-3.0 (ChartQA). The weights are
-  therefore released for research and non-commercial use. Details are in the
-  model card.
+- Weights: CC BY-NC 4.0. Some training data only allows research use (DocVQA; AVA and
+  AADB images, which the teacher wrote questions about) or carries GPL-3.0 (ChartQA). The
+  weights are therefore released for research and non-commercial use. The teachers are
+  Apache-2.0. The v0.3.0 base model, LFM2.5-VL-450M, is under the
+  [LFM Open License v1.0](https://huggingface.co/LiquidAI/LFM2.5-VL-450M/blob/main/LICENSE), which
+  conditions commercial use on staying under its revenue threshold; v0.2.0's SmolVLM base is
+  Apache-2.0. Details are in the model card.
 
 ## Citation
 
