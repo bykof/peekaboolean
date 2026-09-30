@@ -1,4 +1,4 @@
-"""Candidate-scoring model: a VLM backbone (SmolVLM, Qwen3-VL, Qwen3.5) + LoRA + a scalar or yes/no head.
+"""Candidate-scoring model: a VLM backbone (SmolVLM, Qwen3-VL, Qwen3.5, LFM2-VL, InternVL) + LoRA + a scalar or yes/no head.
 
 The head takes one (image, state, instructions, candidate) sequence and emits a
 single number. A question with K candidates produces K scores, and a softmax over
@@ -18,6 +18,8 @@ from transformers import AutoProcessor, AutoModelForImageTextToText
 
 VISION_PAT = re.compile(r"visual|vision|image_encoder|patch_embed|merger")
 QWEN_FAMILIES = ("qwen3_vl", "qwen3_5")
+# Backbones whose image features are scattered into image-token positions of a 1D-rope LM.
+LLAVA_FAMILIES = ("lfm2_vl", "internvl")
 HEADS = ("mlp", "yesno")
 
 
@@ -32,7 +34,9 @@ def answer_token_ids(model_id: str) -> tuple[int, int]:
     return tok.encode(lead + "Yes", add_special_tokens=False)[0], tok.encode(lead + "No", add_special_tokens=False)[0]
 
 
-LORA_SUFFIXES = ("q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj")
+# The last five are LFM2's: attention output and conv projections (out_proj, in_proj), MLP (w1-w3).
+LORA_SUFFIXES = ("q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj",
+                 "out_proj", "in_proj", "w1", "w2", "w3")
 
 
 def language_lora_targets(model: nn.Module) -> list[str]:
@@ -143,6 +147,8 @@ class CandidateScorer(nn.Module):
                   if k not in ("candidate_index", "mm_token_type_ids", "image_counts", "row_sign")}
         if self.family in QWEN_FAMILIES and "pixel_values" in inputs:
             return self._qwen_hidden(inputs, batch)
+        if self.family in LLAVA_FAMILIES and "pixel_values" in inputs:
+            return self._llava_hidden(inputs, batch)
         if self.family == "qwen3_vl" and "mm_token_type_ids" in batch:
             inputs["mm_token_type_ids"] = batch["mm_token_type_ids"]
         if self.family in ("idefics3", "smolvlm") and "pixel_values" in inputs:
@@ -194,6 +200,26 @@ class CandidateScorer(nn.Module):
                                     visual_pos_masks=image_mask[..., 0], deepstack_visual_embeds=deep,
                                     use_cache=False).last_hidden_state
 
+    def _llava_hidden(self, inputs: dict, batch: dict):
+        """LFM2-VL, InternVL: encode each distinct image once and scatter its features into
+        the image-token positions of every row that shares it. Positions are plain 1D."""
+        inner = self.inner
+        ids = inputs["input_ids"]
+        images = {k: inputs[k] for k in ("pixel_values", "pixel_attention_mask", "spatial_shapes") if k in inputs}
+        counts = batch.get("image_counts")
+        if counts is None:          # one image shared by every row (build_inputs)
+            images = {k: v[:1] for k, v in images.items()}
+            counts = torch.tensor([ids.shape[0]])
+        features = inner.get_image_features(**images).pooler_output
+        if len(features) != len(counts):
+            raise ValueError("one feature block per image expected; is image tiling off?")
+        rows = torch.cat([f.reshape(-1, f.shape[-1]).repeat(c, 1) for f, c in zip(features, counts.tolist())])
+        embeds = inner.get_input_embeddings()(ids)
+        image_mask = (ids == inner.config.image_token_id).unsqueeze(-1).expand_as(embeds)
+        embeds = embeds.masked_scatter(image_mask, rows.to(embeds.dtype))
+        return inner.language_model(inputs_embeds=embeds, attention_mask=inputs["attention_mask"],
+                                    use_cache=False).last_hidden_state
+
     def forward(self, batch: dict) -> torch.Tensor:
         """batch holds K candidate sequences. Returns a (K,) tensor of scores."""
         model_inputs = {k: v for k, v in batch.items() if k != "candidate_index"}
@@ -222,6 +248,9 @@ class CandidateScorer(nn.Module):
         # Right padding matches the pooling above. Left padding would break it.
         if hasattr(proc, "tokenizer"):
             proc.tokenizer.padding_side = "right"
+            # A processor-level default (InternVL: left) outranks the attribute unless the
+            # tokenizer lists it among its init kwargs.
+            proc.tokenizer.init_kwargs["padding_side"] = "right"
         # The prompt style is part of the model contract; data.build_inputs and the
         # server read it from here, so training and serving cannot disagree.
         proc.jev_prompt = prompt
@@ -242,6 +271,16 @@ def configure_image_size(processor, size: int):
         processor.image_processor.max_image_size = {"longest_edge": size}
         # SmolVLM-256M/500M use patch size 16 and spatial compression factor 4.
         processor.image_seq_len = (size // 64) ** 2
+    elif processor.__class__.__name__.startswith("Lfm2Vl"):
+        # One NaFlex tile at the image's aspect ratio, 32 px per visual token: at most 256 at 512 px.
+        # The default floor of 64 tokens upscales small images past a 64-token cap (256 px) and
+        # past the fixed patch padding, so the floor follows the cap.
+        processor.image_processor.do_image_splitting = False
+        processor.image_processor.max_image_tokens = (size // 32) ** 2
+        processor.image_processor.min_image_tokens = (size // 32) ** 2 // 4
+    elif processor.__class__.__name__.startswith("InternVL"):
+        # One 448 px tile (256 tokens) whatever the size; max_patches=1 also drops the thumbnail.
+        processor.image_processor.max_patches = 1
     elif hasattr(processor, "image_processor") and getattr(processor.image_processor, "merge_size", None):
         # Qwen: dynamic resolution bounded by pixel count. load_image already fits the
         # longest edge to `size`, so allow up to size*size pixels and never upscale much.

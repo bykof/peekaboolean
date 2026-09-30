@@ -167,16 +167,18 @@ def _expand_cache(cache, b: int):
     """The prefix cache, widened to b rows, as a fresh object the suffix pass may mutate.
 
     Attention layers get their keys/values expanded (the suffix concatenates onto them,
-    which copies). Linear-attention layers (Qwen3.5) hold a conv window and a recurrent
-    state that the suffix updates in place, so those are real per-row copies."""
+    which copies). Linear-attention layers (Qwen3.5, LFM2's conv layers) hold a conv window
+    and a recurrent state that the suffix updates in place, so those are real per-row
+    copies. LFM2 has no recurrent state: its slot stays None."""
     import copy
     fresh = copy.copy(cache)
     fresh.layers = []
+    rows = lambda t: t if t is None else t.repeat(b, *([1] * (t.dim() - 1)))
     for layer in cache.layers:
         new = copy.copy(layer)
         if hasattr(layer, "recurrent_states"):
-            new.conv_states = {i: t.repeat(b, *([1] * (t.dim() - 1))) for i, t in layer.conv_states.items()}
-            new.recurrent_states = {i: t.repeat(b, *([1] * (t.dim() - 1))) for i, t in layer.recurrent_states.items()}
+            new.conv_states = {i: rows(t) for i, t in layer.conv_states.items()}
+            new.recurrent_states = {i: rows(t) for i, t in layer.recurrent_states.items()}
             for name in ("is_conv_states_initialized", "is_recurrent_states_initialized", "has_previous_state"):
                 setattr(new, name, dict(getattr(layer, name)))
         else:
@@ -213,7 +215,7 @@ def score_shared(model, processor, examples, image, max_edge=1024, chunk=32,
 
     cut = _split_point(texts, processor.tokenizer)
     img = image if image is not None else load_image(examples[0][1].image, max_edge)
-    prefix = processor(text=[texts[0][:cut]], images=[img], return_tensors="pt").to(device)
+    prefix = processor(text=[texts[0][:cut]], images=[[img]], return_tensors="pt").to(device)
     mark("image_preprocess")
     # Identical rows (the yes/no head's two noul rows) are scored once.
     unique = list(dict.fromkeys(t[cut:] for t in texts))
@@ -294,7 +296,7 @@ def score_single(model, processor, examples, image, max_edge=1024, chunk=None,
     mark("chat_template")
     cut = _split_point(texts, processor.tokenizer)
     img = image if image is not None else load_image(examples[0][1].image, max_edge)
-    prefix = processor(text=[texts[0][:cut]], images=[img], return_tensors="pt")
+    prefix = processor(text=[texts[0][:cut]], images=[[img]], return_tensors="pt")
     mark("image_preprocess")
     unique = list(dict.fromkeys(t[cut:] for t in texts))
     where = torch.tensor([unique.index(t[cut:]) for t in texts])
@@ -304,7 +306,7 @@ def score_single(model, processor, examples, image, max_edge=1024, chunk=None,
     batch = {"input_ids": torch.cat([prefix["input_ids"].expand(n, -1), suffixes["input_ids"]], 1),
              "attention_mask": torch.cat([prefix["attention_mask"].expand(n, -1), suffixes["attention_mask"]], 1),
              "image_counts": torch.tensor([n])}
-    for key in ("pixel_values", "pixel_attention_mask", "image_grid_thw"):
+    for key in ("pixel_values", "pixel_attention_mask", "image_grid_thw", "spatial_shapes"):
         if key in prefix: batch[key] = prefix[key]
     if "mm_token_type_ids" in prefix:   # Qwen: image positions for 3D rope; suffixes are text
         batch["mm_token_type_ids"] = torch.cat([prefix["mm_token_type_ids"].expand(n, -1),
@@ -321,8 +323,11 @@ def score_single(model, processor, examples, image, max_edge=1024, chunk=None,
 # Up to this many candidate sequences, one pass (score_single) beats prefix-cache + suffix
 # (score_shared): it saves a whole pass of launch overhead, and repeating the short prefix
 # costs little. Measured on an M1 Pro (MPS, fp32): single wins at 2-4 candidates at every
-# size, loses at 28 from 384 px up. Both modes return the same answers.
+# size, loses at 28 from 384 px up. Both modes return the same answers. Backbones with
+# 160-256 visual tokens repeat a long prefix per row, so only the deduplicated noul pair
+# stays single (M1 Max fp16, LFM2.5-VL-450M: choice4 120 ms shared vs 161 ms single).
 SINGLE_PASS_MAX = 8
+SINGLE_PASS_MAX_LONG_PREFIX = 2
 NO_SHARED_CACHE = ()
 
 
@@ -378,8 +383,9 @@ def evaluate(model, processor, state, questions, image_path, calib=None,
     if mode == "auto":
         # Hybrid linear-attention backbones (Qwen3.5) keep a recurrent state, not a KV
         # cache the suffixes can share, so they always take the one-pass path.
+        limit = SINGLE_PASS_MAX if model.family in ("idefics3", "smolvlm") else SINGLE_PASS_MAX_LONG_PREFIX
         mode = ("single" if model.family in NO_SHARED_CACHE
-                or sum(len(ex.candidates) for _, ex in examples) <= SINGLE_PASS_MAX else "shared")
+                or sum(len(ex.candidates) for _, ex in examples) <= limit else "shared")
     if mode == "shared":
         logits = score_shared(model, processor, examples, image, max_edge, chunk, report=report)
     elif mode == "single":

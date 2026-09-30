@@ -430,7 +430,7 @@ def collate(batches: list, pad_id: int) -> dict:
         out["pixel_values"] = torch.cat([b["pixel_values"][:int(b["image_grid_thw"][0].prod())] for b in batches])
         out["image_grid_thw"] = torch.cat([b["image_grid_thw"][:1] for b in batches])
     else:
-        for key in ("pixel_values", "pixel_attention_mask"):
+        for key in ("pixel_values", "pixel_attention_mask", "spatial_shapes"):
             if key in batches[0]:
                 out[key] = torch.cat([b[key][:1] for b in batches])
     from transformers import BatchFeature
@@ -453,7 +453,7 @@ def build_inputs(example: Example, processor, max_edge: int = 1024, image: Image
 
     batch = processor(
         text=texts,
-        images=[img] * len(texts),   # same pixels K times; see the note in model.py
+        images=[[img]] * len(texts),   # same pixels K times, one list per prompt; see the note in model.py
         return_tensors="pt",
         padding=True,
     )
