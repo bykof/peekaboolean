@@ -61,6 +61,7 @@ dominates there. `serve --check` asserts that all paths agree within 1e-3 in fp3
 | v7a/v7b | SmolVLM-500M | yes/no head instead of a fresh scalar head | best general model; teacher noul 0.94 |
 | (side test) | Qwen3.5-0.8B | untrained, yes/no head | 5–10 s per request on the Mac; rejected |
 | v8/v8b | SmolVLM-500M | fine-tune v7b on FairFace age, gender, child/adult | age Spearman 0.74 → 0.81, child 0.93 → 0.97, gender 0.88 → 0.96; general groups unchanged |
+| v9/v9b | SmolVLM-500M | v8b's recipe; teacher v9: Qwen3.6-35B-A3B writes and labels, Qwen3-VL-30B-A3B labels again, mean of both | on the v9b test split, teacher groups +3 to +5.5 points over v8b, also graded by the old teacher alone; public groups and FairFace unchanged (release 0.2.0) |
 
 ## 4. Findings
 
@@ -146,7 +147,25 @@ unchanged v7b. The checkpoint at step 4,000 improved age and person metrics a lo
 left the other groups unchanged, and it was chosen by hand. Next time: explicit group
 weights, or report the groups that matter to the release separately.
 
-### 4.7 Aesthetics: not learnable at this scale
+### 4.7 Two teachers, averaged, beat either one
+
+For v9 the teacher was compared on 18,345 public rows with known answers, each asked in
+both option orders ([alternative-backbones.md](alternative-backbones.md) §9b).
+- Qwen3.6-35B-A3B was more accurate than Qwen3-VL-30B-A3B on choice and score, but worse
+  on noul: it says "yes" too often when the answer is no. A logit offset does not fix
+  that.
+- As an author it kept 24% more questions per image and wrote fewer that are answerable
+  without the image.
+- The mean of both teachers' distributions beat either teacher alone on every type.
+
+v9 therefore lets Qwen3.6 write and label each request, and Qwen3-VL-30B-A3B label the
+same questions again (`prepare_teacher.py --relabel-from`). A question stays only if both
+teachers pass the mass and order-agreement filters: 198,814 of 212,733. Trained on this
+data with v8b's recipe, v9b beats v8b on the teacher groups of the v9b test split. The
+gain holds when those rows are graded by Qwen3-VL-30B-A3B's labels alone, the labeller
+v8b learned from.
+
+### 4.8 Aesthetics: not learnable at this scale
 
 AVA and AADB aesthetic scores stayed below a text-only prior in v5 and v6. From v7 on they were dropped from training. The
 teacher's questions about those images (sharpness, lighting, content) were kept.
@@ -166,6 +185,8 @@ teacher's questions about those images (sharpness, lighting, content) were kept.
 
 "Question prior" is a text-only baseline that sees the question and options but not
 the image. Per-source numbers are in the README and in the JSON reports on the release.
+Results for v9b (release 0.2.0), with v8b re-scored on the same rows, are in the README
+and in [alternative-backbones.md](alternative-backbones.md) §9c.
 
 ## 6. Limitations
 
@@ -180,7 +201,7 @@ the image. Per-source numbers are in the README and in the JSON reports on the r
   decisions about individual people.
 - **Independent options.** Contrast questions ("the larger one") are out of scope.
 
-## 7. Reproducing v8b
+## 7. Reproducing v8b and v9b
 
 Commands as run; each stage was a detached job (`python -m peekaboolean.background start
 --run-dir runs/<name> -- <command>`).
@@ -216,6 +237,35 @@ python -m peekaboolean.pipeline --data data/general-v8b --run runs/v8b \
   --workers 12 --micro 8 --max-edge 512 --image-sizes 256,384,512,512 --ablation 240 \
   --eval-teacher-weight 3
 ```
+
+v9b reuses steps 1 and 4-5 with the two-teacher data in step 2. The run went through
+`prepare_general --out data/general-v5` once, and its calibration set was a mixture
+without teacher rows. Each stage ran as a detached job.
+
+```bash
+# known-answer rows plus count rubrics, for the teacher calibration only
+python -m peekaboolean.prepare_v6 --public data/general-v5 --teacher data/no-teacher --out data/general-v9pub
+
+# first teacher writes and labels; second teacher labels the same questions (vLLM environment)
+VLLM_USE_DEEP_GEMM=0 python src/peekaboolean/prepare_teacher.py --model Qwen/Qwen3.6-35B-A3B-FP8 \
+  --splits-from data/general-v5 --out data/teacher-v9 --chunk 2048 --gpu-memory 0.85
+VLLM_USE_DEEP_GEMM=0 python src/peekaboolean/prepare_teacher.py --model Qwen/Qwen3.6-35B-A3B-FP8 \
+  --splits-from data/general-v9pub --calibrate 20000 --out data/teacher-v9 --gpu-memory 0.85
+python src/peekaboolean/prepare_teacher.py --relabel-from data/teacher-v9 --out data/teacher-v9-2t \
+  --chunk 2048 --gpu-memory 0.85
+python src/peekaboolean/prepare_teacher.py --relabel-from data/teacher-v9 --splits-from data/general-v9pub \
+  --calibrate 20000 --out data/teacher-v9-2t --gpu-memory 0.85
+
+# mixtures, then steps 4 and 5 with data/general-v9 -> runs/v9a and data/general-v9b -> runs/v9b
+python -m peekaboolean.prepare_v6 --public data/general-v5 --teacher data/teacher-v9-2t \
+  --out data/general-v9 --drop-train-sources ava,aadb --balance-teacher-noul 0.6
+python -m peekaboolean.prepare_v6 --public data/general-v5 --teacher data/teacher-v9-2t \
+  --out data/general-v9b --drop-train-sources ava,aadb --balance-teacher-noul 0.6 --extra data/age
+```
+
+v9a's best checkpoint was step 36,000. For v9b, early stopping again kept step 0 (§4.6).
+Step 3,000 was chosen by hand on validation. `VLLM_USE_DEEP_GEMM=0` is needed for FP8
+checkpoints on hosts without a CUDA toolkit.
 
 The teacher needs `VLLM_USE_FLASHINFER_SAMPLER=0` on hosts without `nvcc`. The teacher
 images include AVA and AADB, which must be downloaded separately (`prepare_ava.py`,

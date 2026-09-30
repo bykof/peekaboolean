@@ -17,11 +17,12 @@ never saw in training works as well as a familiar one.
 - Backbone: [SmolVLM-500M-Instruct](https://huggingface.co/HuggingFaceTB/SmolVLM-500M-Instruct),
   LoRA on the language model, vision tower frozen
 - Head: the backbone's own `logit(Yes) − logit(No)` for "is this proposed answer correct?"
-- Training: distilled from Qwen3-VL-30B-A3B (a local teacher that wrote and labelled
-  requests) plus public VQA data
+- Training: distilled from two local teachers plus public VQA data. Qwen3.6-35B-A3B
+  wrote and labelled requests, and Qwen3-VL-30B-A3B labelled them again.
 - Latency: about 400 ms p95 for a six-question request (28 options) on an M1 Pro
   (MPS, 512 px); about 60 ms on a desktop GPU
-- Weights: [GitHub release v0.1.0](https://github.com/bykof/peekaboolean/releases/tag/v0.1.0) (CC BY-NC 4.0, see [Licence](#licence))
+- Weights: [GitHub release v0.2.0](https://github.com/bykof/peekaboolean/releases/tag/v0.2.0) (CC BY-NC 4.0, see [Licence](#licence));
+  the previous checkpoint is still at [v0.1.0](https://github.com/bykof/peekaboolean/releases/tag/v0.1.0)
 
 How it was built and what did and did not work: [docs/REPORT.md](docs/REPORT.md).
 
@@ -30,7 +31,7 @@ How it was built and what did and did not work: [docs/REPORT.md](docs/REPORT.md)
 ```bash
 git clone https://github.com/bykof/peekaboolean && cd peekaboolean
 uv sync --python 3.13
-curl -L https://github.com/bykof/peekaboolean/releases/download/v0.1.0/peekaboolean-500m.tar.gz | tar xz
+curl -L https://github.com/bykof/peekaboolean/releases/download/v0.2.0/peekaboolean-500m.tar.gz | tar xz
 uv run python -m peekaboolean.serve --adapter peekaboolean-500m \
   --image photo.jpg --request requests/general.json --max-edge 512
 ```
@@ -147,6 +148,32 @@ Calibration temperatures were fitted separately for 256, 384 and 512 px. Serve a
 
 ## Results
 
+v0.2.0 (v9b) against v0.1.0 (v8b). Both models are scored on the same rows: the
+held-out test split of v0.2.0, 512 px, 21,996 questions. Image splits are by content
+hash, so no test image was seen in training.
+
+| Group | v0.1.0 (v8b) | **v0.2.0 (v9b)** |
+| --- | --- | --- |
+| teacher choice / noul / score (acc. / bal. acc. / Spearman) | 0.79 / 0.84 / 0.75 | **0.83 / 0.89 / 0.78** |
+| the same, labelled by Qwen3-VL-30B-A3B alone | 0.78 / 0.82 / 0.72 | **0.82 / 0.88 / 0.74** |
+| VQAv2 choice / noul | 0.91 / 0.79 | 0.91 / 0.80 |
+| DocVQA / ChartQA / TextVQA choice | 0.87 / 0.88 / 0.97 | 0.86 / 0.87 / 0.96 |
+| AI2D / CLEVR choice | 0.91 / 0.80 | 0.89 / 0.77 |
+| counting rubrics VQAv2 / CLEVR, Spearman | 0.79 / 0.78 | 0.78 / 0.75 |
+| FairFace age Spearman / child / gender | 0.81 / 0.97 / 0.96 | 0.81 / 0.97 / 0.96 |
+
+- **Teacher groups** are requests written by Qwen3.6 and measure agreement with the
+  teachers, not with ground truth. The second row grades both models against the
+  labeller v8b was trained on, so v9b's gain does not come from grading against its own
+  labels. The question style, though, is the one v9b trained on.
+- **Public groups** are equal within noise. The largest drops, CLEVR (n = 603) and AI2D
+  (n = 253), are about one standard error.
+- **Details:** how the data was made and the per-group numbers are in
+  [docs/alternative-backbones.md](docs/alternative-backbones.md) §9. The JSON reports are
+  attached to the release.
+
+### v0.1.0
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/quality-dark.svg">
   <img alt="Grouped bar chart: v8b vs v6 vs the untrained 500M model on eight test groups" src="docs/img/quality-light.svg" width="760">
@@ -161,7 +188,7 @@ Held-out test split, 512 px. Image splits are by content hash, so no test image 
 seen in training. "Teacher" groups are requests written by the teacher model and
 measure agreement with the teacher, not with ground truth.
 
-| Group | untrained 500M (yes/no head) | v6 (256M, scalar head) | **v8b (this release)** |
+| Group | untrained 500M (yes/no head) | v6 (256M, scalar head) | **v8b (v0.1.0)** |
 | --- | --- | --- | --- |
 | teacher choice, accuracy | 0.51 | 0.77 | **0.78** |
 | teacher noul, balanced accuracy | 0.65 | 0.87 | **0.94** |
@@ -175,7 +202,7 @@ measure agreement with the teacher, not with ground truth.
 
 The untrained column comes from a 4,000-row validation sample. v6 is measured on its own
 (v6) test split, v8b on the full v7/v8 test split (21k questions); both use the same image
-splits. Per-group JSON reports are attached to the GitHub release.
+splits. Per-group JSON reports are attached to the v0.1.0 release.
 
 Mac latency (M1 Pro, MPS, fp32, `--mode auto`, 512 px): a six-question request with 28
 options measured about 380–400 ms p95 for the 500M backbone. The 256M v6 model: 116 ms
@@ -200,8 +227,10 @@ Everything that produced this checkpoint is in `src/peekaboolean`. The pipeline,
 
 1. `prepare_general.py`: typed questions from [The Cauldron](https://huggingface.co/datasets/HuggingFaceM4/the_cauldron)
    (VQAv2, CLEVR, TextVQA, DocVQA, ChartQA, Screen2Words, AI2D), training partitions only
-2. `prepare_teacher.py`: a local Qwen3-VL-30B-A3B (vLLM) writes one request per image
-   and labels it (see the module docstring; runs in its own vLLM environment)
+2. `prepare_teacher.py`: a local Qwen3.6-35B-A3B (vLLM) writes one request per image
+   and labels it. `--relabel-from` lets a second teacher (Qwen3-VL-30B-A3B) label the
+   same questions, and the two are averaged. See the module docstring; it runs in its own
+   vLLM environment.
 3. `prepare_v6.py`: mixes public and teacher rows, adds counting rubrics, tempers the
    teacher's probabilities against rows with known answers
 4. `prepare_age.py`: FairFace age, gender and child/adult questions

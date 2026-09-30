@@ -1,6 +1,6 @@
 [project]
 name = "peekaboolean"
-version = "0.1.0"
+version = "0.2.0"
 description = "Typed visual questions (choice, score, yes/no) answered by scoring caller-supplied options with a small VLM"
 readme = "README.md"
 license = "Apache-2.0"
