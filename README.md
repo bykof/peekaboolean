@@ -146,9 +146,9 @@ curl -s http://127.0.0.1:8765/v1/systemone -H 'Content-Type: application/json' \
 
 ![The UI sorting 42 Wikimedia Commons images in real time](docs/img/ui-demo.gif)
 
-Real time on an M1 Max (MPS, 512 px): 42 images from Wikimedia Commons with the three
-questions of `requests/general.json` (the page's default) sort in 8.9 s, 206 ms of model
-time each. The same images, authors and licences are listed in
+Real time with v0.4.0 on an M1 Max (MPS, fp16, 512 px): 42 images from Wikimedia Commons with
+the three questions of `requests/general.json` (the page's default) sort in 6.7 s, 154 ms of
+model time each. The same images, authors and licences are listed in
 [docs/demo-images.tsv](docs/demo-images.tsv); fetch them and drop `data/demo` on the page:
 
 ```bash
@@ -187,6 +187,11 @@ v0.4.0 (v11) against v0.3.0 (v10b). Both models are scored on the same rows: the
 split of v0.4.0's mixture, 512 px, 31,000 questions (v0.2.0's test split plus the new teacher
 rows). Image splits are by content hash, so no test image was seen in training.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/quality-dark.svg">
+  <img alt="Grouped bar chart: v0.4.0 against v0.3.0 on ten groups of the v0.4.0 test split; the two are within 1.3 points of each other on every group" src="docs/img/quality-light.svg" width="760">
+</picture>
+
 | Group | v0.3.0 (v10b) | **v0.4.0 (v11)** |
 | --- | --- | --- |
 | teacher choice / noul / score (acc. / bal. acc. / Spearman) | 0.86 / 0.90 / 0.84 | **0.87 / 0.91 / 0.85** |
@@ -208,6 +213,11 @@ rows). Image splits are by content hash, so no test image was seen in training.
   items, and its 11 abstentions there were all text-only items (see Limitations).
 - **Latency:** 247 ms per request6 on the M1 Max, against 200 ms for v0.3.0.
 - **Details:** [docs/REPORT.md](docs/REPORT.md) §4.10 and the JSON reports attached to the release.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/latency-dark.svg">
+  <img alt="p95 latency of a six-question request: v0.4.0 248 ms, v0.3.0 202 ms and v0.2.0 187 ms on an M1 Max, v0.4.0 75 ms on an RTX PRO 6000, against a 500 ms budget" src="docs/img/latency-light.svg" width="760">
+</picture>
 
 ### v0.3.0
 
@@ -258,16 +268,6 @@ v0.2.0 (v9b) against v0.1.0 (v8b), on the same rows as above.
   attached to the release.
 
 ### v0.1.0
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/quality-dark.svg">
-  <img alt="Grouped bar chart: v8b vs v6 vs the untrained 500M model on eight test groups" src="docs/img/quality-light.svg" width="760">
-</picture>
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/latency-dark.svg">
-  <img alt="Latency on an M1 Pro: SmolVLM-256M 230 ms, SmolVLM-500M 390 ms, Qwen3.5-0.8B 3 to 10 s, against a 500 ms budget" src="docs/img/latency-light.svg" width="760">
-</picture>
 
 Held-out test split, 512 px. Image splits are by content hash, so no test image was
 seen in training. "Teacher" groups are requests written by the teacher model and

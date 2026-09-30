@@ -1,7 +1,7 @@
 # Typed visual questions on a laptop: what worked and what did not
 
-This report describes how the v8b checkpoint was built, from v1 to v8b. Negative
-results are included: several of them decided the design.
+This report describes how the v11 checkpoint (release 0.4.0) was built, from v1 to v11.
+Negative results are included: several of them decided the design.
 
 ## 1. The task
 
@@ -214,24 +214,25 @@ abstentions were text-only items answered against a blank grey image: to v11 a b
 hidden fact. The next can't-tell data needs rules that cannot be decided, and requests without an
 image.
 
-## 5. Results (v8b, held-out test split, 512 px)
+## 5. Results (v11, held-out test split, 512 px)
 
-| Group | n | metric | question prior | v8b |
+| Group | n | metric | question prior | v11 |
 | --- | --- | --- | --- | --- |
-| all choice | 8,669 | accuracy | 0.33 | 0.86 |
-| all noul | 4,287 | balanced accuracy | – | 0.87 |
-| all score | 3,636 | Spearman of expected level | – | 0.75 |
-| teacher choice | 2,936 | accuracy | 0.33 | 0.78 |
-| teacher noul | 2,675 | balanced accuracy | – | 0.94 |
-| teacher score | 2,952 | Spearman | – | 0.73 |
-| FairFace age (10 bins) | 2,014 | Spearman | – | 0.81 |
-| FairFace child / gender | 885 / 1,503 | balanced accuracy | – | 0.97 / 0.96 |
+| all choice | 12,450 | accuracy | 0.31 | 0.90 |
+| all noul | 10,239 | balanced accuracy | – | 0.91 |
+| all score | 8,311 | Spearman of expected level | – | 0.85 |
+| teacher choice | 6,717 | accuracy | 0.29 | 0.87 |
+| teacher noul | 6,239 | balanced accuracy | – | 0.91 |
+| teacher score | 5,613 | Spearman | – | 0.85 |
+| FairFace age (10 bins) | 2,014 | Spearman | – | 0.85 |
+| FairFace child / gender | 885 / 1,503 | balanced accuracy | – | 0.98 / 0.97 |
 
-"Question prior" is a text-only baseline that sees the question and options but not
-the image. Per-source numbers are in the README and in the JSON reports on the release.
-Results for v9b (release 0.2.0), with v8b re-scored on the same rows, are in
-[alternative-backbones.md](alternative-backbones.md) §9c. v10b (release 0.3.0) against v9b on
-those rows is in the README and in [newer-models-and-jev.md](newer-models-and-jev.md) §3c.
+The test split is v0.4.0's: v0.2.0's test split plus the new teacher rows. "Question prior" is
+a text-only baseline that sees the question and options but not the image. The can't-tell
+rates are in §4.10. Per-source numbers, with v10b scored on the same rows, are in the README
+and in the JSON reports on the release. Earlier results: v8b (release 0.1.0) in the README,
+v9b against v8b in [alternative-backbones.md](alternative-backbones.md) §9c, and v10b against
+v9b in the README and in [newer-models-and-jev.md](newer-models-and-jev.md) §3c.
 
 ## 6. Limitations
 
