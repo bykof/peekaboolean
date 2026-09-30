@@ -11,16 +11,27 @@ import signal
 import time
 import torch
 import torch.nn.functional as F
-from .data import DecisionDataset, build_inputs, collate
+from .data import DecisionDataset, Example, build_inputs, collate, has_unknown
 from .model import CandidateScorer, PROMPT_FOR_HEAD, configure_image_size, select_device, device_dtype
 from .baselines import QuestionPriors
 
 
-def loss_for(qtype, logits, target):
+def loss_for(qtype, logits, target, unknown=False):
     ce = -(target * F.log_softmax(logits.float(), -1)).sum()
     if qtype == "score":
-        delta = torch.softmax(logits.float(), -1).cumsum(-1) - target.cumsum(-1)
-        return delta.square().mean() + 0.2 * ce
+        if not unknown:
+            delta = torch.softmax(logits.float(), -1).cumsum(-1) - target.cumsum(-1)
+            return delta.square().mean() + 0.2 * ce
+        # The can't-tell slot is not a level: EMD compares the levels given an answer, and the
+        # slot itself gets a full-weight binary cross-entropy instead of EMD's 0.2 share.
+        log_p = F.log_softmax(logits.float(), -1)
+        u = target[-1]
+        loss = -(u * log_p[-1] + (1 - u) * torch.log1p(-log_p[-1].exp().clamp(max=1 - 1e-6))) + 0.2 * ce
+        levels = target[:-1]
+        if float(levels.sum()) > 1e-6:
+            delta = torch.softmax(logits[:-1].float(), -1).cumsum(-1) - (levels / levels.sum()).cumsum(-1)
+            loss = loss + delta.square().mean()
+        return loss
     return ce
 
 
@@ -137,9 +148,19 @@ def evaluate(model, processor, dataset, device, limit=600, max_edge=384, ablatio
         p, t = logits.softmax(-1), ex.target
         metrics = {"nll": float(-(t * logits.log_softmax(-1)).sum()),
                    "brier": float((p - t).square().sum()), "uniform_nll": math.log(len(t))}
+        full_ex, full_t, answerable = ex, t, True
+        if has_unknown(ex):
+            # Abstention is graded on its own; the option metrics below judge the distribution
+            # given an answer, and only for questions the teacher thinks can be answered.
+            abstains = int(p.argmax()) == len(p) - 1
+            metrics["unknown_mae"] = abs(float(p[-1] - t[-1]))
+            metrics["abstain_recall" if float(t[-1]) >= 0.5 else "false_abstain"] = float(abstains)
+            answerable = float(t[-1]) < 0.5
+            p, t = p[:-1] / p[:-1].sum(), t[:-1] / t[:-1].sum().clamp_min(1e-9)
+            ex = Example(ex.image, ex.state, ex.instructions, ex.candidates[:-1], t, ex.qtype, (ex.names or [])[:-1])
         # Soft labels (teacher rows) count toward accuracy when they clearly favour one answer.
-        decided = float(t.max()) >= 0.6
-        prior = priors.predict(dataset.rows[i], ex) if priors else None
+        decided = answerable and float(t.max()) >= 0.6
+        prior = priors.predict(dataset.rows[i], ex) if priors and answerable else None
         if prior is not None:
             metrics["question_prior_nll"] = float(-(t * prior.clamp_min(1e-9).log()).sum())
             if ex.qtype in ("choice", "noul") and decided:
@@ -148,12 +169,12 @@ def evaluate(model, processor, dataset, device, limit=600, max_edge=384, ablatio
                 top = (prior == prior.max()).float()
                 metrics["question_prior_accuracy"] = float(top[t.argmax()] / top.sum())
         if ex.qtype == "choice" and decided: metrics["accuracy"] = float(p.argmax() == t.argmax())
-        if ex.qtype == "noul":
+        if ex.qtype == "noul" and answerable:
             metrics["probability_mae"] = float(abs(p[1] - t[1]))
             if decided:
                 metrics["accuracy"] = float(p.argmax() == t.argmax())
                 metrics["positive_recall" if t[1] > 0.5 else "negative_recall"] = metrics["accuracy"]
-        if ex.qtype == "score":
+        if ex.qtype == "score" and answerable:
             centres = (torch.arange(len(t)) + 0.5) / len(t)
             metrics["emd"] = float((p.cumsum(-1) - t.cumsum(-1)).square().mean().sqrt())
             metrics["mean_mae"] = float(abs(((p - t) * centres).sum()))
@@ -169,9 +190,9 @@ def evaluate(model, processor, dataset, device, limit=600, max_edge=384, ablatio
             other = next((dataset.rows[j]["image"] for j in ids[n + 1:] + ids[:n]
                           if dataset.rows[j]["image"] != dataset.rows[i]["image"]), None)
             if other:
-                ex.image = dataset.image_root / other
-                wrong = model(build_inputs(ex, processor, max_edge).to(device)).float().cpu()
-                wrong_images.append((f"{source}/{ex.qtype}", float(-(t * wrong.log_softmax(-1)).sum()) - metrics["nll"]))
+                full_ex.image = dataset.image_root / other
+                wrong = model(build_inputs(full_ex, processor, max_edge).to(device)).float().cpu()
+                wrong_images.append((f"{source}/{ex.qtype}", float(-(full_t * wrong.log_softmax(-1)).sum()) - metrics["nll"]))
     model.train(was_training)
     result = {g: {**{k: sum(v) / len(v) for k, v in m.items()}, "n": len(m["nll"])} for g, m in groups.items()}
     for metrics in result.values():
@@ -243,6 +264,8 @@ def main():
     ap.add_argument("--seed", type=int, default=31)
     ap.add_argument("--device", default="auto")
     ap.add_argument("--gradient-checkpointing", action="store_true")
+    ap.add_argument("--unknown", action="store_true",
+                    help="score a can't-tell candidate for every question (targets from each row's `unknown` mass)")
     args = ap.parse_args()
     if args.micro < 1 or args.accum % args.micro: ap.error("--micro must divide --accum")
     if args.head_lr is None: args.head_lr = 3e-4 if args.head == "mlp" else args.lr
@@ -262,13 +285,14 @@ def main():
         for key in ("model", "accum", "epochs", "lr", "head_lr", "lora_r", "seed", "image_sizes", "max_edge", "warmup", "head"):
             if previous.get(key, "mlp" if key == "head" else None) != getattr(args, key): raise SystemExit(f"Resume requires original --{key.replace('_', '-')}")
     else: (out / "args.json").write_text(json.dumps(vars(args), indent=2))
-    train_ds = DecisionDataset(args.train, args.image_root, augment=True, min_levels=2, max_levels=10, seed=args.seed)
-    val_ds = DecisionDataset(args.val, args.image_root, augment=False, seed=args.seed)
+    train_ds = DecisionDataset(args.train, args.image_root, augment=True, min_levels=2, max_levels=10, seed=args.seed,
+                               unknown=args.unknown)
+    val_ds = DecisionDataset(args.val, args.image_root, augment=False, seed=args.seed, unknown=args.unknown)
     priors = QuestionPriors(train_ds.rows)
     model = CandidateScorer(args.model, lora_r=args.lora_r,
         gradient_checkpointing=args.gradient_checkpointing, dtype=device_dtype(device),
         adapter=str(resume or args.init_adapter) if (resume or args.init_adapter) else None,
-        is_trainable=bool(resume or args.init_adapter), head=args.head).to(device)
+        is_trainable=bool(resume or args.init_adapter), head=args.head, unknown=args.unknown).to(device)
     processor = CandidateScorer.load_processor(args.model, args.max_edge, prompt=PROMPT_FOR_HEAD[args.head])
     head = list(model.head.parameters()); head_ids = {id(p) for p in head}
     opt = torch.optim.AdamW([
@@ -321,7 +345,7 @@ def main():
             if positions[0] != seen + offset: raise RuntimeError(f"stream out of order: {positions[0]} != {seen + offset}")
             logits = model(inputs.to(device))
             parts = logits.split(inputs["image_counts"].tolist()) if args.micro > 1 else [logits]
-            losses = [loss_for(ex.qtype, part, ex.target.to(device)) for ex, part in zip(examples, parts)]
+            losses = [loss_for(ex.qtype, part, ex.target.to(device), has_unknown(ex)) for ex, part in zip(examples, parts)]
             loss = torch.stack(losses).sum()
             if not torch.isfinite(loss): raise RuntimeError(f"nonfinite loss at rows {positions}")
             (loss / group_size).backward(); running.extend(float(l.detach()) for l in losses)

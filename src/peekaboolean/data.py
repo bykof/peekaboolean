@@ -195,6 +195,23 @@ class Example:
     names: list[str] | None = None
 
 
+# The trained "can't tell" (v0.4): one more candidate, scored like any option, last in the list.
+UNKNOWN = "__unknown__"
+UNKNOWN_TEXT = "It cannot be determined from the image and the given information."
+
+
+def with_unknown(ex: Example, p_unknown: float) -> Example:
+    """`ex` with the can't-tell candidate appended; the caller's options keep their
+    relative target and share the remaining 1 - p_unknown."""
+    target = torch.cat([ex.target * (1 - p_unknown), torch.tensor([float(p_unknown)])])
+    return Example(ex.image, ex.state, ex.instructions, ex.candidates + [UNKNOWN_TEXT], target, ex.qtype,
+                   (ex.names or [str(i) for i in range(len(ex.candidates))]) + [UNKNOWN])
+
+
+def has_unknown(ex: Example) -> bool:
+    return bool(ex.names) and ex.names[-1] == UNKNOWN
+
+
 class DecisionDataset(Dataset):
     def __init__(
         self,
@@ -204,6 +221,7 @@ class DecisionDataset(Dataset):
         min_levels: int = 2,   # a served rubric may have as few as 2 levels and at most 10
         max_levels: int = 10,
         seed: int = 0,
+        unknown: bool = False,
     ):
         self.rows = [json.loads(l) for l in Path(jsonl).read_text(encoding="utf-8").splitlines() if l.strip()]
         self.image_root = Path(image_root)
@@ -211,6 +229,7 @@ class DecisionDataset(Dataset):
         self.min_levels = min_levels
         self.max_levels = max_levels
         self.seed = seed
+        self.unknown = unknown
         self.epoch = 0
 
     def __len__(self):
@@ -222,7 +241,7 @@ class DecisionDataset(Dataset):
         rng = random.Random(f"{self.seed}:{i}:{self.epoch}" if self.augment else f"{self.seed}:{i}")
         return to_example(self.rows[i], self.image_root, rng,
                           augment=self.augment,
-                          min_levels=self.min_levels, max_levels=self.max_levels)
+                          min_levels=self.min_levels, max_levels=self.max_levels, unknown=self.unknown)
 
 
 def to_example(
@@ -232,6 +251,7 @@ def to_example(
     augment: bool = False,
     min_levels: int = 2,
     max_levels: int = 10,
+    unknown: bool = False,
 ) -> Example:
     """Turn one row into the candidates the model scores.
 
@@ -239,6 +259,10 @@ def to_example(
     minus its label, so serving and training cannot drift apart in how a rubric, an
     option map or a structured description reaches the prompt -- which is the one kind
     of bug that shows up as a quietly worse model rather than as an error.
+
+    With `unknown`, the can't-tell candidate is appended and trained toward the row's
+    `unknown` mass (0 when absent). Teacher rows labelled before the can't-tell option
+    existed carry no such mass, and a 0 there would be a guess, so they get no candidate.
     """
     rng = rng or random.Random()
     image_root = Path(image_root)
@@ -332,7 +356,7 @@ def to_example(
     if augment and not state and row.get("augment_neutral_state", True) and rng.random() < 0.5:
         state = render(rng.choice(NEUTRAL_STATES))
 
-    return Example(
+    ex = Example(
         image=image_root / row["image"],
         state=state,
         instructions=instructions,
@@ -341,6 +365,9 @@ def to_example(
         qtype=qtype,
         names=names,
     )
+    if unknown and ("unknown" in row or row.get("source") != "teacher"):
+        ex = with_unknown(ex, float(row.get("unknown", 0.0)))
+    return ex
 
 
 PROMPT = """{state}
@@ -375,12 +402,15 @@ def candidate_prompts(example: Example, style: str = "judge") -> list[str]:
     """One prompt per candidate. Separate from the processor so a server, a test or a
     diff can see the exact text the model was trained on without loading a model."""
     if style == "yesno" and example.qtype == "noul":
-        false_text, true_text = example.candidates
+        false_text, true_text = example.candidates[:2]
         wording = "" if (false_text, true_text) == ("No", "Yes") else \
             f"\n(Yes means: {true_text}. No means: {false_text}.)"
         prompt = NOUL_DIRECT.format(state=example.state.strip(), instructions=example.instructions.strip(),
                                     wording=wording)
-        return [prompt, prompt]
+        # The can't-tell row is a proposed answer like any option's, judged by the same head.
+        return [prompt, prompt] + [PROMPT_YESNO.format(state=example.state.strip(),
+                                                       instructions=example.instructions.strip(), candidate=c)
+                                   for c in example.candidates[2:]]
     return [
         PROMPTS[style].format(
             state=example.state.strip(),
@@ -395,7 +425,7 @@ def candidate_signs(example: Example, style: str = "judge") -> list[float]:
     """Per-row multiplier on the head's score. 1 everywhere except the yes/no-head noul,
     whose two identical rows read the same Yes-vs-No logit with opposite signs."""
     if style == "yesno" and example.qtype == "noul":
-        return [-0.5, 0.5]
+        return [-0.5, 0.5] + [1.0] * (len(example.candidates) - 2)
     return [1.0] * len(example.candidates)
 
 

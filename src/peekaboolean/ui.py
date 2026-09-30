@@ -8,8 +8,8 @@ beside the request, and gets back exactly what `serve` prints. The model is load
 each request gets a thread, and a lock lets the model score one image at a time.
 
 POST /v1/systemone takes TypeSafe's Jev request with the `images` extension that imajev and
-its benchmark harness use (data URLs or base64), and answers in Jev's envelope. peekaboolean
-has no trained "can't tell", so `unknown_probability` is 0 and `abstained` false.
+its benchmark harness use (data URLs or base64), and answers in Jev's envelope. Adapters trained
+with the can't-tell candidate report `unknown_probability` and `abstained`; older ones say 0 and false.
 """
 
 from __future__ import annotations
@@ -52,7 +52,8 @@ def request_image(req: dict, jev: bool) -> io.BytesIO:
 
 
 def jev_response(out: dict, model: str) -> dict:
-    answers = {qid: {**a, "unknown_probability": 0.0, "abstained": False} for qid, a in out["answers"].items()}
+    # An adapter trained with the can't-tell candidate reports its own; others never abstain.
+    answers = {qid: {"unknown_probability": 0.0, "abstained": False, **a} for qid, a in out["answers"].items()}
     return {"model": model, "answers": answers, "usage": out.get("usage", {})}
 
 

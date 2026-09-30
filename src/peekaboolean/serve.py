@@ -33,7 +33,8 @@ from pathlib import Path
 
 import torch
 
-from .data import Example, build_inputs, candidate_prompts, candidate_signs, load_image, to_example
+from .data import (Example, build_inputs, candidate_prompts, candidate_signs, has_unknown, load_image,
+                   to_example)
 from .model import CandidateScorer, QWEN_FAMILIES, select_device, device_dtype, configure_image_size
 
 # A served question carries no label. `to_example` computes a training target it will
@@ -47,8 +48,8 @@ def _stub_label(qtype: str, n: int) -> dict:
     return {"value": 0.5}
 
 
-def request_examples(state, questions: dict, image: str | Path) -> list[tuple[str, Example]]:
-    """One Example per question, in request order."""
+def request_examples(state, questions: dict, image: str | Path, unknown: bool = False) -> list[tuple[str, Example]]:
+    """One Example per question, in request order; with `unknown`, each also gets the can't-tell candidate."""
     if not isinstance(questions, dict) or not questions:
         raise ValueError("questions must be a non-empty map")
     out = []
@@ -67,7 +68,7 @@ def request_examples(state, questions: dict, image: str | Path) -> list[tuple[st
             row["criteria"] = criteria
         if "attribute" in q:
             row["attribute"] = q["attribute"]
-        out.append((qid, to_example(row, augment=False)))
+        out.append((qid, to_example(row, augment=False, unknown=unknown)))
     return out
 
 
@@ -90,6 +91,17 @@ DIGITS = 9
 
 
 def answer_for(ex: Example, probs: torch.Tensor) -> dict:
+    if has_unknown(ex):
+        # The caller's options get the distribution given that the image answers the question,
+        # as imajev reports it; noul follows Jev's convention of adding half the can't-tell mass.
+        u, rest = float(probs[-1]), probs[:-1]
+        given = rest / rest.sum() if float(rest.sum()) > 0 else torch.full_like(rest, 1 / rest.numel())
+        answer = answer_for(Example(ex.image, ex.state, ex.instructions, ex.candidates[:-1], ex.target, ex.qtype,
+                                    (ex.names or [])[:-1]), given)
+        if ex.qtype == "noul":
+            answer["noul"] = round(float(rest[1]) + u / 2, DIGITS)
+        answer.update(unknown_probability=round(u, DIGITS), abstained=bool(u > float(rest.max())))
+        return answer
     names = ex.names or [str(i) for i in range(probs.numel())]
     table = {n: round(float(v), DIGITS) for n, v in zip(names, probs)}
     if ex.qtype == "noul":
@@ -468,7 +480,7 @@ def evaluate(model, processor, state, questions, image_path, calib=None,
     calib = (calib or {}).get("by_image_size", {}).get(str(max_edge), calib or {})
     if "image_size" in calib and calib["image_size"] != max_edge:
         raise ValueError("calibration was fitted at a different image resolution")
-    examples = request_examples(state, questions, image_path)
+    examples = request_examples(state, questions, image_path, unknown=getattr(model, "unknown", False))
     image = load_image(image_path, max_edge)
     if report is not None:
         report.setdefault("ms", {})["image_decode"] = (time.perf_counter() - started) * 1000
@@ -577,7 +589,7 @@ def main():
 @torch.no_grad()
 def check(model, processor, state, questions, image_path, max_edge, chunk):
     """The shared prefix must not move the answer."""
-    examples = request_examples(state, questions, image_path)
+    examples = request_examples(state, questions, image_path, unknown=getattr(model, "unknown", False))
     image = load_image(image_path, max_edge)
     a = score_naive(model, processor, examples, image, max_edge, chunk)
     fast_paths = (("single", score_single),) if model.family in NO_SHARED_CACHE else \

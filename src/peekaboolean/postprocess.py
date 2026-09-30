@@ -34,8 +34,8 @@ def main():
     adapter = run / (run / "best.txt").read_text().strip()
     device = select_device()
     model, proc, _ = load(str(adapter), device=device)
-    calibration = DecisionDataset(data / "calib.jsonl", augment=False, seed=31)
-    test = DecisionDataset(data / "test.jsonl", augment=False, seed=31)
+    calibration = DecisionDataset(data / "calib.jsonl", augment=False, seed=31, unknown=model.unknown)
+    test = DecisionDataset(data / "test.jsonl", augment=False, seed=31, unknown=model.unknown)
     priors = QuestionPriors(DecisionDataset(data / "train.jsonl", augment=False).rows)
     reports = {}
     for size in map(int, args.sizes.split(",")):

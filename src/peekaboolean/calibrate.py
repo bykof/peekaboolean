@@ -40,7 +40,7 @@ from peft import PeftModel
 
 import random
 
-from .data import DecisionDataset, Example, build_inputs, rebin, sample_levels
+from .data import DecisionDataset, Example, build_inputs, rebin, sample_levels, with_unknown
 from .model import CandidateScorer
 
 
@@ -88,7 +88,7 @@ def variants(ds, i: int, levels: list[int]) -> list[Example]:
                            candidates=sample_levels(k, row.get("attribute", ""), rng),
                            target=rebin(row["hist"], k), qtype="score",
                            names=[str(j) for j in range(k)]))
-    return out
+    return [with_unknown(e, float(row.get("unknown", 0.0))) for e in out] if ds.unknown else out
 
 
 @torch.no_grad()

@@ -29,6 +29,7 @@ def main():
     ap.add_argument("--head", default="mlp")
     ap.add_argument("--init-adapter")
     ap.add_argument("--lr")
+    ap.add_argument("--unknown", action="store_true", help="train the can't-tell candidate (train_general --unknown)")
     args = ap.parse_args()
     data, run = Path(args.data), Path(args.run)
     run.mkdir(parents=True, exist_ok=True)
@@ -61,6 +62,7 @@ def main():
                "--head", args.head]
     if args.init_adapter: command += ["--init-adapter", args.init_adapter]
     if args.lr: command += ["--lr", args.lr]
+    if args.unknown: command += ["--unknown"]
     if args.resume: command += ["--resume", "latest"]
     stage("training", command)
     if not (run / "complete.json").exists():

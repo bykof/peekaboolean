@@ -40,25 +40,32 @@ def main():
     image = tmp / "a.jpg"
     Image.new("RGB", (64, 48), "gray").save(image)
     args = SimpleNamespace(chunk=8, max_edge=64, min_mass=0.6, max_disagreement=0.5, model="second",
-                           relabel_from=str(tmp / "first"), seed=31, calibrate=10, splits_from=str(tmp / "public"))
+                           relabel_from=str(tmp / "first"), seed=31, calibrate=10, splits_from=str(tmp / "public"),
+                           unknown=False)
 
     # Teacher output of the first teacher: its two views are already stored.
     (tmp / "first").mkdir()
     rows = [{"image": str(image), "type": "choice", "state": "", "instructions": "Which?",
              "criteria": {"x": "wrong one", "y": "right one"}, "teacher_views": [[0.4, 0.6], [0.4, 0.6]]},
             {"image": str(image), "type": "noul", "state": "", "instructions": "Is it right?",
-             "teacher_views": [[0.5, 0.5], [0.5, 0.5]]}]
+             "teacher_views": [[0.5, 0.5], [0.5, 0.5]]},
+            # Labelled with the can't-tell option (v0.4): three-way views, relabelled the same way.
+            {"image": str(image), "type": "choice", "state": "", "instructions": "Which, if any?", "with_unknown": True,
+             "criteria": {"x": "wrong one", "y": "right one"}, "teacher_views": [[0.1, 0.7, 0.2], [0.1, 0.7, 0.2]]}]
     (tmp / "first" / "train.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
     out = tmp / "second"; out.mkdir()
     relabel(FakeLLM(0.8), None, args, out)
     got = [json.loads(l) for l in (out / "train.jsonl").read_text().splitlines()]
-    assert len(got) == 2 and all(len(r["teacher_views"]) == 4 and r["relabelled_by"] == "second" for r in got)
-    choice, noul = got
+    assert len(got) == 3 and all(len(r["teacher_views"]) == 4 and r["relabelled_by"] == "second" for r in got)
+    choice, noul, cant_tell = got
+    # The second teacher's views: [0.2, 0.8, 0] (other = x) and [0, 0.8, 0.2] (reversed, other = can't tell).
+    assert all(len(v) == 3 for v in cant_tell["teacher_views"]), cant_tell
+    assert abs(cant_tell["unknown"] - 0.15) < 1e-9 and abs(cant_tell["target_probs"]["y"] - 0.75 / 0.85) < 1e-9, cant_tell
     assert choice["label"] == "y" and abs(choice["target_probs"]["y"] - 0.7) < 1e-9, choice
     assert abs(noul["value"] - 0.65) < 1e-9, noul
     assert (out / "done.txt").read_text().split() == [str(image)]
     relabel(FakeLLM(0.8), None, args, out)              # resumable: nothing is appended twice
-    assert len((out / "train.jsonl").read_text().splitlines()) == 2
+    assert len((out / "train.jsonl").read_text().splitlines()) == 3
 
     # Calibration: a second run with --relabel-from carries both teachers' views.
     (tmp / "public").mkdir()

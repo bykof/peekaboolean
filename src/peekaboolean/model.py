@@ -72,6 +72,7 @@ class CandidateScorer(nn.Module):
         adapter: str | None = None,
         is_trainable: bool = False,
         head: str | None = None,
+        unknown: bool | None = None,
     ):
         super().__init__()
         self.model_id = model_id
@@ -81,6 +82,8 @@ class CandidateScorer(nn.Module):
         # at the answer position, as a trainable linear head initialized from the LM head,
         # so an untrained scorer already answers with what the pretrained model knows.
         self.head_kind = head or saved.get("head", "mlp")
+        # Trained with the can't-tell candidate (data.UNKNOWN): serving then scores it for every question.
+        self.unknown = saved.get("unknown", False) if unknown is None else unknown
         if self.head_kind not in HEADS:
             raise ValueError(f"head must be one of {HEADS}")
 
@@ -240,7 +243,7 @@ class CandidateScorer(nn.Module):
         torch.save(self.head.state_dict(), f"{path}/head.pt")
         (Path(path) / "scorer_config.json").write_text(json.dumps(
             {"model_id": self.model_id, "family": self.family, "head": self.head_kind,
-             "prompt": PROMPT_FOR_HEAD[self.head_kind]}))
+             "prompt": PROMPT_FOR_HEAD[self.head_kind], "unknown": self.unknown}))
 
     @staticmethod
     def load_processor(model_id: str, image_size: int = 512, prompt: str = "judge"):

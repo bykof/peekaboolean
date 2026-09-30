@@ -85,6 +85,11 @@ def apply_temperature(row, temperatures):
     if "teacher_views" not in row: return row
     p = soften(row["teacher_views"], temperatures[row["type"]])
     row = dict(row)
+    if row.get("with_unknown"):
+        # The views end with the can't-tell option: temper the whole distribution, then keep its
+        # mass apart and the options' distribution given an answer (data.to_example joins them).
+        row["unknown"], rest = p[-1], p[:-1]
+        p = [x / sum(rest) for x in rest] if sum(rest) > 0 else [1 / len(rest)] * len(rest)
     if row["type"] == "choice":
         keys = list(row["criteria"]); row["target_probs"] = dict(zip(keys, p))
     elif row["type"] == "score":

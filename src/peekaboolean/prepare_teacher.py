@@ -93,17 +93,37 @@ STATE_STYLES = {
               "a claim the uploader made about the image). A claim may be false; a question may test it.",
 }
 
+# v0.4 (--unknown): states the questions must be applied to, and a can't-tell option in every
+# labelling view whose mass becomes the row's `unknown` target.
+GROUNDED_STYLES = {
+    "record": "The state is a JSON object: a record the caller already holds about what the image should show "
+              "(a product listing, an order, an inspection form, an insurance claim, a catalogue entry) with 3-6 "
+              "concrete fields such as colour, count, brand, size, condition, printed text or date. The fields are "
+              "the caller's claims: make one or two of them wrong for THIS image and the rest right.",
+    "rule": "The state is a rule or policy the caller applies, with concrete conditions: a numeric limit on a count, "
+            "size, amount or price, a required or banned element, a list of allowed values, or an exception to one of "
+            "these. Invent the rule for this use case; do not copy these words.",
+}
+UNKNOWN_OPTION = "Cannot be determined from the image and the context"
+
 LETTERS = string.ascii_uppercase
 BLIND_NOTE = "(No image is available. Give your best guess from the text alone.)\n\n"
 
 
-def author_prompt(rng: random.Random) -> tuple[str, dict]:
+def author_prompt(rng: random.Random, grounded: bool = False) -> tuple[str, dict]:
     use_case = rng.choice(USE_CASES)
-    state_style = rng.choices(list(STATE_STYLES), weights=[2, 3, 3, 2])[0]
+    styles = {**STATE_STYLES, **(GROUNDED_STYLES if grounded else {})}
+    state_style = rng.choices(list(styles), weights=[2, 3, 3, 2] + ([4, 4] if grounded else []))[0]
     n = rng.randint(3, 6)
     types = [rng.choices(["choice", "score", "noul"], weights=[4, 3, 3])[0] for _ in range(n)]
+    # One question per request, sometimes, whose honest answer is "can't tell"; the labeller decides.
+    cant_tell = rng.randrange(n) if grounded and rng.random() < 0.35 else None
     lines = []
     for i, t in enumerate(types, 1):
+        if i - 1 == cant_tell:
+            lines.append(f"{i}. {t} whose honest answer from this image and state CANNOT be determined: ask about "
+                         "something hidden, cut off, too small to read, outside the frame, or not given in the state")
+            continue
         if t == "choice":
             k = rng.choice([2, 3, 3, 4, 4, 5, 6])
             lines.append(f"{i}. choice with exactly {k} options")
@@ -136,11 +156,15 @@ Format:
   }}}}
 
 Rules:
-- {STATE_STYLES[state_style]}
+- {styles[state_style]}
 - Write exactly these questions, in this order:
 {chr(10).join('  ' + l for l in lines)}
 - The state is what the caller knows BEFORE anyone looks at the image: who they are, what they need,
-  their policy. It must never describe, summarize or hint at what the image shows.
+  their policy{", their records" if grounded else ""}. It must never describe, summarize or hint at what the image shows{
+  " (a record's fields are claims to test, not a description)" if grounded else ""}.{
+  chr(10) + "- At least two questions must apply the state to the image: for a record, whether a named field matches"
+  " the image or which field it contradicts; for a rule, whether the image meets it, which clause or exception"
+  " applies, or which listed value the image shows." if state_style in GROUNDED_STYLES else ""}
 - Every question must be answerable only by looking at this image (plus the state). Ask about what is
   specific here: objects, people, text, numbers, layout, colours, condition, quality, style, intent.
 - The answer must never be readable from the text alone. Option descriptions, levels and yes/no
@@ -157,7 +181,7 @@ Rules:
   age (as a score whose levels are age ranges in years, youngest first).
 - Vary phrasing; do not start every question the same way. Do not mention these rules.
 Output only the JSON."""
-    return text, {"use_case": use_case, "state_style": state_style, "types": types}
+    return text, {"use_case": use_case, "state_style": state_style, "types": types, "cant_tell": cant_tell}
 
 
 def validate_request(req, types) -> dict | None:
@@ -200,9 +224,10 @@ def render(value) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
-def label_views(state, q) -> list[tuple[str, list[int]]]:
+def label_views(state, q, unknown: bool = False) -> list[tuple[str, list[int]]]:
     """Two lettered views of one question. Each returns (prompt, order) where letter j
-    stands for canonical option order[j]."""
+    stands for canonical option order[j]. With `unknown`, the can't-tell option is the last
+    canonical option; the reversed view moves it to the front."""
     if q["type"] == "choice":
         items = list(q["criteria"].items())
         texts = [f"{k}: {v}" for k, v in items]
@@ -212,6 +237,8 @@ def label_views(state, q) -> list[tuple[str, list[int]]]:
         c = q.get("criteria") or {}
         texts = [f"No{' - ' + c['false'] if c.get('false') else ''}",
                  f"Yes{' - ' + c['true'] if c.get('true') else ''}"]
+    if unknown:
+        texts = texts + [UNKNOWN_OPTION]
     n = len(texts)
     first = list(range(n))
     second = list(reversed(first))   # every option changes letter, except a middle one
@@ -273,6 +300,8 @@ def belief(row) -> dict:
     """Label fields from the mean of all teacher views (two option orders per teacher)."""
     views = row["teacher_views"]
     p = [sum(x) / len(views) for x in zip(*views)]
+    if row.get("with_unknown"):
+        row["unknown"], p = split_unknown(p)
     if row["type"] == "choice":
         keys = list(row["criteria"])
         row.update(target_probs=dict(zip(keys, p)), label=keys[max(range(len(p)), key=p.__getitem__)])
@@ -281,6 +310,13 @@ def belief(row) -> dict:
     else:
         row["value"] = p[1]
     return row
+
+
+def split_unknown(p: list[float]) -> tuple[float, list[float]]:
+    """(can't-tell mass, distribution over the caller's options given an answer)."""
+    rest = p[:-1]
+    total = sum(rest)
+    return p[-1], ([x / total for x in rest] if total > 0 else [1 / len(rest)] * len(rest))
 
 
 def relabel(llm, label_params, args, out):
@@ -308,7 +344,7 @@ def relabel(llm, label_params, args, out):
                     for r in by_image[image]:
                         q = {"type": r["type"], "instructions": r["instructions"],
                              **({"criteria": r["criteria"]} if "criteria" in r else {})}
-                        for prompt, order in label_views(r["state"], q):
+                        for prompt, order in label_views(r["state"], q, r.get("with_unknown", False)):
                             jobs.append([{"role": "user", "content": [{"type": "image_pil", "image_pil": pic},
                                                                       {"type": "text", "text": prompt}]}])
                             index.append((r, order))
@@ -356,7 +392,7 @@ def calibrate(llm, label_params, args, out):
         else:
             q = {"type": "noul", "instructions": r["instructions"]}
             truth = int(r["value"])
-        for prompt, order in label_views("", q):
+        for prompt, order in label_views("", q, args.unknown):
             jobs.append([{"role": "user", "content": [{"type": "image_pil", "image_pil": pic},
                                                       {"type": "text", "text": prompt}]}])
             index.append((n, r["type"], r["source"], truth, order))
@@ -374,6 +410,8 @@ def calibrate(llm, label_params, args, out):
         key = lambda r: (r["type"], r["source"], r["truth"])
         if len(first) != len(rows) or any(key(a) != key(b) for a, b in zip(first, rows)):
             raise ValueError("calibration rows differ from --relabel-from's: use the same --splits-from, --seed, --calibrate")
+        if any(len(a["views"][0]) != len(b["views"][0]) for a, b in zip(first, rows)):
+            raise ValueError("calibration views differ in length from --relabel-from's: use the same --unknown")
         for a, b in zip(first, rows):
             b["views"], b["mass"] = a["views"] + b["views"], a["mass"] + b["mass"]
     with (out / "teacher-calibration.jsonl").open("w") as fh:
@@ -401,6 +439,9 @@ def main():
                     help="instead: label N public calib rows with known answers, for fitting a teacher temperature")
     ap.add_argument("--relabel-from", help="instead: second teacher for this teacher output's kept questions "
                                            "(with --calibrate: for its teacher-calibration.jsonl)")
+    ap.add_argument("--unknown", action="store_true",
+                    help="v0.4: offer a can't-tell option when labelling (its mass becomes `unknown`) and author "
+                         "record/rule states and some can't-tell questions")
     args = ap.parse_args()
 
     from vllm import LLM, SamplingParams
@@ -445,7 +486,7 @@ def main():
         for (path, split, source), pic in zip(chunk, pics):
             if pic is None: stats["bad_image"] += 1; continue
             rng = random.Random(f"{args.seed}:author:{path}")
-            text, meta = author_prompt(rng)
+            text, meta = author_prompt(rng, args.unknown)
             jobs.append([{"role": "user", "content": [{"type": "image_pil", "image_pil": pic},
                                                       {"type": "text", "text": text}]}])
             metas.append((path, split, source, pic, meta))
@@ -465,13 +506,15 @@ def main():
         jobs, index = [], []
         for ri, (path, split, source, pic, meta, req) in enumerate(requests):
             for name, q in req["questions"].items():
-                views_q = label_views(req["state"], q)
+                views_q = label_views(req["state"], q, args.unknown)
                 for vi, (prompt, order) in enumerate(views_q):
                     jobs.append([{"role": "user", "content": [{"type": "image_pil", "image_pil": pic},
                                                               {"type": "text", "text": prompt}]}])
                     index.append((ri, name, order, "seen"))
                 if args.blind_threshold < 1:
-                    prompt, order = views_q[0]
+                    # Blind, the can't-tell option would always win; without it the question is
+                    # whether the wording alone gives the answer away, as before.
+                    prompt, order = label_views(req["state"], q)[0]
                     jobs.append([{"role": "user", "content": [{"type": "text", "text": BLIND_NOTE + prompt}]}])
                     index.append((ri, name, order, "blind"))
         labelled = chat(llm, jobs, label_params)
@@ -491,14 +534,19 @@ def main():
                 p = [(x + y) / 2 for x, y in zip(a, b)]
                 seen_best = max(range(len(p)), key=p.__getitem__)
                 sightless = blind.get((ri, name))
-                if sightless is not None and max(sightless) >= args.blind_threshold \
+                cant_tell = args.unknown and seen_best == len(p) - 1
+                if sightless is not None and not cant_tell and max(sightless) >= args.blind_threshold \
                         and max(range(len(sightless)), key=sightless.__getitem__) == seen_best:
                     stats["text_answerable"] += 1; continue
+                stats["cant_tell"] += cant_tell
                 row = {"image": path, "type": q["type"], "state": req["state"], "instructions": q["instructions"],
                        "source": "teacher", "image_source": source, "question_name": name,
                        "use_case": meta["use_case"], "supervision": "teacher_logprobs", "view_tv": round(tv, 4),
                        "teacher_views": [[round(x, 6) for x in a], [round(x, 6) for x in b]]}
                 if sightless is not None: row["teacher_blind"] = [round(x, 6) for x in sightless]
+                if args.unknown: row.update(with_unknown=True, state_style=meta["state_style"],
+                                            steered_cant_tell=meta["cant_tell"] is not None
+                                            and list(req["questions"]).index(name) == meta["cant_tell"])
                 if name.endswith("_negated"): row["negation_of"] = name[:-len("_negated")]
                 if "criteria" in q: row["criteria"] = q["criteria"]
                 files[split].write(json.dumps(belief(row), ensure_ascii=False) + "\n")

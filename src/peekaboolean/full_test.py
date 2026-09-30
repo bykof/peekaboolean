@@ -22,9 +22,9 @@ def main():
     ap.add_argument("--workers", type=int, default=12)
     args = ap.parse_args()
     torch.set_num_threads(4)
-    test = DecisionDataset(f"{args.data}/{args.split}.jsonl", augment=False, seed=31)
-    priors = QuestionPriors(DecisionDataset(f"{args.data}/train.jsonl", augment=False).rows)
     model, proc, _ = load(args.adapter)
+    test = DecisionDataset(f"{args.data}/{args.split}.jsonl", augment=False, seed=31, unknown=model.unknown)
+    priors = QuestionPriors(DecisionDataset(f"{args.data}/train.jsonl", augment=False).rows)
     device = next(model.head.parameters()).device
     report = evaluate(model, proc, test, device, limit=0, max_edge=args.max_edge, ablation=args.ablation,
                       priors=priors, workers=args.workers)
