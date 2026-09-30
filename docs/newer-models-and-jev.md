@@ -15,13 +15,17 @@ repositories; each claim links to one. Measurements are this session's:
 
 Ranked by value for the cost:
 
-1. **torch 2.14 on macOS: −22%, no retraining.** request6 p50 on SmolVLM v0.2.0 goes
-   309 → 242 ms, and answers stay within 0.0032 of fp32. The likely cause is the Metal prefill
-   attention kernels added in torch 2.13; no A/B isolates it (§4).
-2. **Tree-packed scoring: a further −26%, exact, no retraining.** The whole request becomes
-   one forward pass over image+state → question → option, with a 4D mask that keeps options
-   apart. It matches the naive path to 4e-5 in fp32. It only works for plain-attention LMs
-   (SmolVLM, InternVL, Qwen3-VL) (§4).
+1. **torch 2.14 on macOS: −22%, no retraining. Done**, as `pyproject.toml`'s macOS pin.
+   request6 p50 on SmolVLM v0.2.0 goes 309 → 243 ms. Against CPU fp32 on the 42 demo images,
+   MPS fp16 differs by at most 0.0035 on 2.14 and 0.0038 on 2.11. The likely cause is the
+   Metal prefill attention kernels added in torch 2.13; no A/B isolates it (§4).
+2. **Tree-packed scoring: a further −27%, exact, no retraining. Done**, as `--mode tree`,
+   which `auto` picks on SmolVLM and InternVL.
+   - The whole request becomes one forward pass over image+state → question → option, with a
+     4D mask that keeps options apart.
+   - `serve --check` finds tree = naive to under 1e-5.
+   - request6 on torch 2.14 goes 247 → 180 ms, so v0.2.0 as a whole goes 309 → 180 ms.
+   - Plain-attention LMs with 1D positions only (§4).
 3. **LFM2.5-VL-450M as the backbone: faster, better zero-shot, and it trains faster.**
    - Speed: request6 takes 221 ms against SmolVLM's 309 ms on torch 2.11, and 201 against
      242 ms on 2.14.
@@ -253,10 +257,16 @@ notes that the path is unvalidated on some GPU families.
 - Measured with the repo's benchmark on the M1 Max: SmolVLM v0.2.0 request6 309 → 242 ms p50,
   noul 102 → 83 ms, choice4 154 → 126 ms. Probability differences against fp32 are
   unchanged (0.0032).
-- Repeat this on the M1 Pro before moving the pin.
+- Against CPU fp32, an independent implementation, over the 42 demo images × 11 questions
+  (462 answers), MPS fp16 differs:
+  - on torch 2.14: by at most 0.0035, with 1 top answer changed;
+  - on torch 2.11: by at most 0.0038, with 2 changed.
+
+  Every change is a near-tie below 0.003, for example 0.4511 against 0.4491. So the new
+  kernel path is no worse on this M1 Max. The M1 Pro remains to be measured.
 - The cu128 index the Linux pins use stops at torch 2.11 for cp313 (cu130 has 2.13 and 2.14,
-  [index](https://download.pytorch.org/whl/cu128/torch/)). So bump macOS only, with a platform
-  marker, or move the Linux index to cu130.
+  [index](https://download.pytorch.org/whl/cu128/torch/)). `pyproject.toml` therefore pins
+  2.14 / torchvision 0.29 on macOS only (commit `deps: torch 2.14 on macOS`).
 
 **Tree-packed scoring.**
 - One forward pass holds the prefix, then each question's shared text once, then each
@@ -268,9 +278,23 @@ notes that the path is unvalidated on some GPU families.
   (`masking_utils.py`, "If the mask is already 4D, simply return as-is").
 - This is SpecInfer's tree attention applied to scoring
   ([arXiv 2305.09781](https://arxiv.org/abs/2305.09781)).
+- It is implemented as `serve.score_tree` (`--mode tree`), which `auto` picks on
+  `TREE_FAMILIES` (idefics3/smolvlm, internvl). Requests over 4,096 packed tokens fall back to
+  `shared`.
+- `serve --check` compares it with naive, and it agrees to under 1e-5 on both backbones and
+  two requests.
 
-Model-only time for SmolVLM-500M, request6, fp16. It includes vision and the LM, and excludes
-templating and preprocessing. The scratch script is `treebench.py`; run on an idle machine.
+End to end with the repo's benchmark (M1 Max, fp16, torch 2.14, p50 / p95):
+
+| Backbone | request | `shared` | **`tree`** |
+|---|---|---|---|
+| SmolVLM v0.2.0 | request6 | 247 / 253 ms | **180 / 187 ms** |
+| SmolVLM v0.2.0 | choice4 / noul | 124 / 105 ms | **99 / 87 ms** |
+| InternVL3-1B (untrained) | request6 | 374 / 403 ms | **283 / 298 ms** |
+
+Model-only time from the scratch script `treebench.py`, SmolVLM-500M, request6, fp16. It
+includes vision and the LM, and excludes templating and preprocessing. Run on an idle
+machine.
 
 | Layout | LM token positions | torch 2.11 p50 / p95 | torch 2.14 p50 / p95 |
 |---|---|---|---|
@@ -378,9 +402,11 @@ its own evaluation.
   - `spatial_shapes` is carried along.
   - `_expand_cache` guards LFM2's empty recurrent slot.
   - The single-pass cutoff is per family (§3b).
+  - `score_tree` / `--mode tree` is new (§4).
+- `pyproject.toml` / `uv.lock`: torch 2.14 and torchvision 0.29 on macOS, 2.11 elsewhere (§4).
 - `serve --check` passes, with worst difference 0.00000, for SmolVLM v0.2.0,
-  LFM2.5-VL-450M and InternVL3-1B. `tests/test_image_size.py` covers the processor
-  settings.
+  LFM2.5-VL-450M and InternVL3-1B, on torch 2.11 and 2.14. The tree path is included where it
+  applies. `tests/test_image_size.py` covers the processor settings.
 - Known issue: user text containing a processor's placeholder strings makes the request
   fail.
   - InternVL raises `UnboundLocalError` on `<video>`, and one v9b validation row has it.
@@ -400,11 +426,9 @@ its own evaluation.
    - a model card that states the LFM Open License.
 
    That is a v0.3.0 candidate.
-3. **torch 2.14 on macOS.** Pin it with a `sys_platform == 'darwin'` marker and keep 2.11 on
-   the cu128 Linux index. Check fp16 against fp32 and `serve --check` on the M1 Pro first.
-4. **Tree-packed scoring** as `--mode tree`, only for plain-attention backbones. It pays if
-   the model stays on SmolVLM or moves to InternVL. With LFM2 it needs a per-question cache
-   pass instead.
+3. **torch 2.14 on macOS: done.** Still to do: measure it on the M1 Pro.
+4. **Tree-packed scoring: done** for SmolVLM and InternVL. LFM2 would need a per-question
+   cache pass instead.
 5. **The prompt rewrite.** It is a fine-tune experiment on the chosen backbone, compared on
    the full test split. For LFM2 the latency gain also needs the per-question pass.
 6. **Jev.**
