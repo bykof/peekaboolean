@@ -63,6 +63,7 @@ dominates there. `serve --check` asserts that all paths agree within 1e-3 in fp3
 | v8/v8b | SmolVLM-500M | fine-tune v7b on FairFace age, gender, child/adult | age Spearman 0.74 → 0.81, child 0.93 → 0.97, gender 0.88 → 0.96; general groups unchanged |
 | v9/v9b | SmolVLM-500M | v8b's recipe; teacher v9: Qwen3.6-35B-A3B writes and labels, Qwen3-VL-30B-A3B labels again, mean of both | on the v9b test split, teacher groups +3 to +5.5 points over v8b, also graded by the old teacher alone; public groups and FairFace unchanged (release 0.2.0) |
 | v10/v10b | LFM2.5-VL-450M | v9a's and v9b's data and recipe on a new backbone ([newer-models-and-jev.md](newer-models-and-jev.md)) | v10b against v9b on the same test split: teacher choice / noul / score +6 / +3 / +9 points, CLEVR +16, DocVQA +8, FairFace age Spearman 0.81 → 0.86, selection NLL 0.507 → 0.424; AI2D and Screen2Words 2–3 points lower. request6 on the Mac takes 200 ms, against v0.2.0's 243 ms through the same path (180 ms through `tree`, which LFM2 cannot use) (release 0.3.0) |
+| v11 | LFM2.5-VL-450M | fine-tune v10b with a trained can't-tell candidate (`--unknown`) on v9b's rows plus 72,735 teacher questions labelled with a can't-tell option, some with record or rule states | on the v12 test split, abstains on 79% / 30% / 84% of the teachers' can't-tell choice / noul / score questions and on at most 1.5% of the others; the other groups hold. ImajevBench dev + calibration 110 → 118 of 254, but 0 of 24 Unknown items; 247 ms on the Mac (release 0.4.0) |
 
 ## 4. Findings
 
@@ -190,6 +191,29 @@ timings are in [newer-models-and-jev.md](newer-models-and-jev.md) §3.
 AVA and AADB aesthetic scores stayed below a text-only prior in v5 and v6. From v7 on they were dropped from training. The
 teacher's questions about those images (sharpness, lighting, content) were kept.
 
+### 4.10 A can't-tell learns the kind of unknown it was shown
+
+v11 adds one candidate to every question, "It cannot be determined from the image and the given
+information.", scored by the same yes/no head. The teachers label it too: every labelling view
+offers the can't-tell option, and its mass becomes the target.
+
+The first author prompt asked for one question per request "whose honest answer cannot be
+determined". On a 32-image smoke test, the teacher wrote questions about visibility ("is the base
+fully in view?"), which have an answer, and the labeller gave those questions 0.05 can't-tell mass.
+Asked instead for a concrete fact the image hides (a name, number or text that is cut off, too
+small or out of frame), with concrete options only, the teacher's questions changed. Across the
+full 24,063-image run, 47% of the 5,905 steered questions came out as can't-tell, against 3.6% of
+the other 72,190.
+
+v11 learned exactly that kind of unknown. On the test split it abstains on 79% of the teachers'
+can't-tell choice questions and 84% of the score ones, but only on 30% of the 67 noul ones. It
+abstains on at most 1.5% of the others, and the other groups hold. On ImajevBench it abstains on
+none of the 24 Unknown items. Those are mostly rules that the photo and the record cannot decide,
+and its can't-tell mass there (0.067) is the same as on answerable items (0.066). All 11
+abstentions were text-only items answered against a blank grey image: to v11 a blank image is a
+hidden fact. The next can't-tell data needs rules that cannot be decided, and requests without an
+image.
+
 ## 5. Results (v8b, held-out test split, 512 px)
 
 | Group | n | metric | question prior | v8b |
@@ -222,7 +246,7 @@ those rows is in the README and in [newer-models-and-jev.md](newer-models-and-je
   decisions about individual people.
 - **Independent options.** Contrast questions ("the larger one") are out of scope.
 
-## 7. Reproducing v8b, v9b and v10b
+## 7. Reproducing v8b, v9b, v10b and v11
 
 Commands as run; each stage was a detached job (`python -m peekaboolean.background start
 --run-dir runs/<name> -- <command>`).
@@ -312,6 +336,33 @@ gender balanced accuracy among checkpoints whose selection NLL is at most step 0
 It picked step 8,000: selection NLL 0.4065 against step 0's 0.4102, and the best FairFace mean.
 Early stopping on selection NLL alone would have kept step 5,000 (0.3991).
 
+v11 (release 0.4.0): a new teacher run with the can't-tell option, a new seed and a limit of
+15,000 training images (plus every validation, calibration and test image), relabelled by the
+second teacher, mixed with v9b's rows as they are, then a fine-tune of v10b.
+
+```bash
+# teacher and calibration (vLLM environment; FP8 needs VLLM_USE_DEEP_GEMM=0)
+python src/peekaboolean/prepare_teacher.py --model Qwen/Qwen3.6-35B-A3B-FP8 --seed 41 --unknown \
+  --splits-from data/general-v5 --limit 15000 --out data/teacher-v12 --chunk 2048 --gpu-memory 0.85
+python src/peekaboolean/prepare_teacher.py --model Qwen/Qwen3.6-35B-A3B-FP8 --seed 41 --unknown \
+  --splits-from data/general-v9pub --calibrate 20000 --out data/teacher-v12 --gpu-memory 0.85
+python src/peekaboolean/prepare_teacher.py --unknown --relabel-from data/teacher-v12 --out data/teacher-v12-2t \
+  --chunk 2048 --gpu-memory 0.85
+python src/peekaboolean/prepare_teacher.py --unknown --relabel-from data/teacher-v12 --splits-from data/general-v9pub \
+  --calibrate 20000 --seed 41 --out data/teacher-v12-2t --gpu-memory 0.85
+# v9b's rows plus the new teacher rows, twice in train
+python -m peekaboolean.prepare_v6 --public data/general-v9b --teacher data/teacher-v12-2t --out data/general-v12 \
+  --count-sources none --balance-teacher-noul 0.6 --teacher-repeat 2
+python -m peekaboolean.train_general --train data/general-v12/train.jsonl --val data/general-v12/val.jsonl \
+  --out runs/v11 --model LiquidAI/LFM2.5-VL-450M --head yesno --init-adapter runs/v10b/step-008000 --unknown \
+  --lr 3e-5 --epochs 0.5 --max-hours 8 --eval-every 1000 --log-every 25 --eval-limit 4000 --patience 4 --workers 12 \
+  --micro 8 --max-edge 512 --image-sizes 256,384,512,512 --ablation 240 --eval-teacher-weight 3
+python -m peekaboolean.postprocess --run runs/v11 --data data/general-v12
+python -m peekaboolean.full_test --adapter runs/v11/step-005000 --data data/general-v12 --out full-test-v11.json
+```
+
+Early stopping kept step 5,000.
+
 The teacher needs `VLLM_USE_FLASHINFER_SAMPLER=0` on hosts without `nvcc`. The teacher
 images include AVA and AADB, which must be downloaded separately (`prepare_ava.py`,
 `prepare_aadb.py`).
@@ -319,9 +370,8 @@ images include AVA and AADB, which must be downloaded separately (`prepare_ava.p
 ## 8. Next steps
 
 - A small human-labelled set of real requests as the acceptance test
-- A trained "can't tell", and requests whose state is a record or a rule the image must be
-  checked against: `prepare_teacher.py --unknown` and `train_general.py --unknown`, the v0.4.0
-  candidate ([newer-models-and-jev.md](newer-models-and-jev.md) §8b, §9)
+- Can't-tell data for rules that the photo and the record cannot decide, and for requests
+  without an image (§4.10). The can't-tell of v0.4.0 only knows facts the image hides
 - Contrast between options (a second pass that sees all options together)
 - The prompt rewrite that leaves each option only its own text: about −57% latency, needs a
   fine-tune ([newer-models-and-jev.md](newer-models-and-jev.md) §5). An MLX port no longer looks

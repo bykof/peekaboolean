@@ -488,13 +488,13 @@ unless marked as measured.
   maintainer.
 - The dev and calibration splits have gold: 254 items, 24 of them "can't tell".
 
-| Track (dev + calibration) | n | v0.2.0 (SmolVLM) | LFM2.5-VL-450M, step 9,000 (uncalibrated) | v0.3.0 (v10b) |
-|---|---|---|---|---|
-| all | 254 | 104 (40.9%) | 110 (43.3%) | 110 (43.3%) |
-| visual | 103 | 50 (48.5%) | 59 (57.3%) | 58 (56.3%) |
-| joint (photo + record or rule) | 113 | 41 (36.3%) | 40 (35.4%) | 43 (38.1%) |
-| text only, answered against a blank image | 38 | 13 (34.2%) | 11 (28.9%) | 9 (23.7%) |
-| of these, "can't tell" references | 24 | 0 | 0 | 0 |
+| Track (dev + calibration) | n | v0.2.0 (SmolVLM) | LFM2.5-VL-450M, step 9,000 (uncalibrated) | v0.3.0 (v10b) | v0.4.0 (v11, can't-tell) |
+|---|---|---|---|---|---|
+| all | 254 | 104 (40.9%) | 110 (43.3%) | 110 (43.3%) | 118 (46.5%) |
+| visual | 103 | 50 (48.5%) | 59 (57.3%) | 58 (56.3%) | 65 (63.1%) |
+| joint (photo + record or rule) | 113 | 41 (36.3%) | 40 (35.4%) | 43 (38.1%) | 47 (41.6%) |
+| text only, answered against a blank image | 38 | 13 (34.2%) | 11 (28.9%) | 9 (23.7%) | 6 (15.8%) |
+| of these, "can't tell" references | 24 | 0 | 0 | 0 | 0 |
 
 For scale, on the test split: SmolVLM2-2.2B scores 28.7%, untuned Qwen3.5-2B 60.2%, imajev-2b
 70.3–71.7% and imajev-4b 83.9%. Different split, so compare loosely.
@@ -545,8 +545,8 @@ For scale, on the test split: SmolVLM2-2.2B scores 28.7%, untuned Qwen3.5-2B 60.
    the full test split. For LFM2 the latency gain also needs the per-question pass.
 6. **Jev.**
    - `POST /v1/systemone` with the Jev envelope in the local server: done.
-   - The ImajevBench test run of v0.3.0 went to the maintainer for scoring, as an issue on
-     [mohit67890/imajev](https://github.com/mohit67890/imajev/issues).
+   - ImajevBench test runs of v0.3.0 and v0.4.0, for the maintainer to score (the test labels are
+     withheld), are made; they go in as an issue on [mohit67890/imajev](https://github.com/mohit67890/imajev/issues).
    - The weights are public on the Hub as
      [bykof/peekaboolean-450m](https://huggingface.co/bykof/peekaboolean-450m), which Image
      JevBench re-scores on its own schedule; its paid priority evaluation was not requested.
@@ -561,8 +561,10 @@ For scale, on the test split: SmolVLM2-2.2B scores 28.7%, untuned Qwen3.5-2B 60.
 9. **Escape placeholder strings in request text: done.** `data.candidate_prompts` puts a space
    after the `<` of any tag-shaped text, so `<image>` no longer makes the processor count a
    second image and `<|im_end|>` no longer closes the user turn.
-10. **A trained can't-tell (§8b, items 1 and 2).** The code is in (`--unknown`). A 96-image
-    smoke test fixed the author prompt: asked for a question "whose answer cannot be
-    determined", the teacher asked whether things were visible, which has an answer. Asked
-    for a concrete fact the image hides, 9 of 22 such questions got most of the can't-tell
-    mass, against 1 of 291 other questions. The full teacher run and v11 follow.
+10. **A trained can't-tell (§8b, items 1 and 2): v0.4.0.** Two smoke tests (32 and 96 images) fixed
+    the author prompt first: asked for a question "whose answer cannot be determined", the teacher asked
+    whether things were visible, which has an answer. Asked for a concrete fact the image hides,
+    9 of 22 such questions got most of the can't-tell mass, against 1 of 291 other questions.
+    v11 abstains on most of the teachers' can't-tell questions and rarely on others, but on none of
+    ImajevBench's 24 Unknown items, which are mostly undecidable rules (REPORT §4.10). Next: teacher
+    requests whose rule the photo and the record cannot decide, and requests without an image.

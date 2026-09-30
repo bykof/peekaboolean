@@ -19,12 +19,15 @@ never saw in training works as well as a familiar one.
 - Head: the backbone's own `logit(Yes) − logit(No)` for "is this proposed answer correct?"
 - Training: distilled from two local teachers plus public VQA data. Qwen3.6-35B-A3B
   wrote and labelled requests, and Qwen3-VL-30B-A3B labelled them again.
-- Latency: 200 ms p50 (202 ms p95) for a six-question request (28 options) on an M1 Max
-  (MPS, fp16, torch 2.14, 512 px); 59 ms p95 on an RTX PRO 6000. The M1 Pro, where v0.2.0
+- Can't tell: every answer carries `unknown_probability` and `abstained`, from a trained
+  candidate "It cannot be determined from the image and the given information." (new in v0.4.0)
+- Latency: 247 ms p50 (248 ms p95) for a six-question request (28 options) on an M1 Max
+  (MPS, fp16, torch 2.14, 512 px); 75 ms p95 on an RTX PRO 6000. The M1 Pro, where v0.2.0
   measured about 400 ms p95, has not been re-measured
-- Weights: [GitHub release v0.3.0](https://github.com/bykof/peekaboolean/releases/tag/v0.3.0) and
+- Weights: [GitHub release v0.4.0](https://github.com/bykof/peekaboolean/releases/tag/v0.4.0) and
   [bykof/peekaboolean-450m](https://huggingface.co/bykof/peekaboolean-450m) (CC BY-NC 4.0, see [Licence](#licence));
-  earlier checkpoints stay at [v0.2.0](https://github.com/bykof/peekaboolean/releases/tag/v0.2.0) and
+  earlier checkpoints stay at [v0.3.0](https://github.com/bykof/peekaboolean/releases/tag/v0.3.0) (no can't-tell,
+  20% faster), [v0.2.0](https://github.com/bykof/peekaboolean/releases/tag/v0.2.0) and
   [v0.1.0](https://github.com/bykof/peekaboolean/releases/tag/v0.1.0)
 - Jev: the request format is TypeSafe's [Jev](https://docs.typesafe.ai/models) with an image; the local
   server also answers `POST /v1/systemone`
@@ -36,7 +39,7 @@ How it was built and what did and did not work: [docs/REPORT.md](docs/REPORT.md)
 ```bash
 git clone https://github.com/bykof/peekaboolean && cd peekaboolean
 uv sync --python 3.13
-curl -L https://github.com/bykof/peekaboolean/releases/download/v0.3.0/peekaboolean-450m.tar.gz | tar xz
+curl -L https://github.com/bykof/peekaboolean/releases/download/v0.4.0/peekaboolean-450m.tar.gz | tar xz
 uv run python -m peekaboolean.serve --adapter peekaboolean-450m \
   --image photo.jpg --request requests/general.json --max-edge 512
 ```
@@ -44,7 +47,7 @@ uv run python -m peekaboolean.serve --adapter peekaboolean-450m \
 `--adapter` takes a local checkpoint directory or a Hugging Face repo id
 (`--adapter bykof/peekaboolean-450m` skips the download above). The base model downloads on
 first use. `--device` picks `cuda`, `mps` or `cpu` (default: auto). On MPS the model runs in
-fp16: on the 42 demo images, answers moved by at most 0.008 against CPU fp32 and none changed.
+fp16: on the 42 demo images, answers moved by at most 0.006 against CPU fp32 and none changed.
 `--check` runs in fp32.
 
 A request (`requests/general.json`):
@@ -97,6 +100,13 @@ The answer for a chart image:
 ```
 
 `score` is the expected level index (0 = first level). `noul` is P(yes).
+
+Since v0.4.0 every answer also carries `unknown_probability`, the mass on the trained can't-tell
+candidate, and `abstained`, true when that mass beats every option. `probabilities` are then the
+distribution given that the image answers the question, and `noul` is P(yes) +
+`unknown_probability` / 2, Jev's convention. Adapters without `"unknown": true` in
+`scorer_config.json` (v0.3.0 and earlier) leave both fields out, and `/v1/systemone` reports them
+as 0 and false.
 
 From Python, load once and reuse:
 
@@ -161,8 +171,9 @@ mkdir -p data/demo && tail -n +2 docs/demo-images.tsv | while IFS=$'\t' read -r 
 - `naive`: one forward pass per question; the reference path
 
 On an M1 Max (MPS, fp16, torch 2.14, 512 px), request6 on v0.2.0's SmolVLM takes 180 ms
-p50 through `tree` against 247 ms through `shared`. LFM2.5-VL (v0.3.0) has short-convolution
-layers, so `auto` scores request6 through `shared` there: 200 ms p50.
+p50 through `tree` against 247 ms through `shared`. LFM2.5-VL (v0.3.0 and later) has short-convolution
+layers, so `auto` scores request6 through `shared` there: 200 ms p50 for v0.3.0, 247 ms for v0.4.0,
+which scores one more candidate per question.
 
 `serve --check` asserts that the three agree. `python -m peekaboolean.benchmark` measures warm
 latency per image size and request shape (`--breakdown` for per-stage times).
@@ -172,9 +183,36 @@ Calibration temperatures were fitted separately for 256, 384 and 512 px. Serve a
 
 ## Results
 
+v0.4.0 (v11) against v0.3.0 (v10b). Both models are scored on the same rows: the held-out test
+split of v0.4.0's mixture, 512 px, 31,000 questions (v0.2.0's test split plus the new teacher
+rows). Image splits are by content hash, so no test image was seen in training.
+
+| Group | v0.3.0 (v10b) | **v0.4.0 (v11)** |
+| --- | --- | --- |
+| teacher choice / noul / score (acc. / bal. acc. / Spearman) | 0.86 / 0.90 / 0.84 | **0.87 / 0.91 / 0.85** |
+| VQAv2 choice / noul | 0.92 / 0.81 | 0.92 / 0.82 |
+| DocVQA / ChartQA / TextVQA choice | 0.94 / 0.90 / 0.97 | 0.94 / 0.92 / 0.97 |
+| AI2D / CLEVR / Screen2Words choice | 0.85 / 0.93 / 0.92 | 0.85 / 0.92 / 0.93 |
+| counting rubrics VQAv2 / CLEVR, Spearman | 0.80 / 0.93 | 0.79 / 0.93 |
+| FairFace age Spearman / child / gender | 0.86 / 0.98 / 0.97 | 0.85 / 0.98 / 0.97 |
+| selection NLL (lower is better) | 0.460 | 0.462 |
+| can't tell: abstains on the teachers' can't-tell questions, choice / noul / score | – | 79% / 30% / 84% |
+| can't tell: abstains on the other teacher questions | – | 1.5% / 0.2% / 1.4% |
+| ImajevBench v2.0-lite, dev + calibration (254 items) | 110 (43.3%) | **118 (46.5%)** |
+
+- **What changed:** v11 is v0.3.0 fine-tuned with `--unknown` on v0.2.0's data plus 72,735 new
+  teacher questions whose labels include a can't-tell option, with record and rule states.
+- **Public groups** move by less than about one standard error.
+- **Can't tell** works on questions like the ones the teachers could not answer: 367 choice, 67 noul
+  and 229 score questions in the test split. On ImajevBench it still gets none of the 24 Unknown
+  items, and its 11 abstentions there were all text-only items (see Limitations).
+- **Latency:** 247 ms per request6 on the M1 Max, against 200 ms for v0.3.0.
+- **Details:** [docs/REPORT.md](docs/REPORT.md) §4.10 and the JSON reports attached to the release.
+
+### v0.3.0
+
 v0.3.0 (v10b) against v0.2.0 (v9b). Both models are scored on the same rows: the
-held-out test split of v0.2.0, 512 px, 21,996 questions. Image splits are by content
-hash, so no test image was seen in training.
+held-out test split of v0.2.0, 512 px, 21,996 questions.
 
 | Group | v0.2.0 (v9b) | **v0.3.0 (v10b)** |
 | --- | --- | --- |
@@ -191,7 +229,6 @@ hash, so no test image was seen in training.
   teachers, not with ground truth.
 - **Public groups** gain most on CLEVR (+16 points) and DocVQA (+8). AI2D (−2.4, n = 253)
   is about one standard error lower, and Screen2Words (−2.6, n = 386) about two.
-- **No "can't tell" yet**: ImajevBench's Unknown items still score 0 (see Limitations).
 - **Details:** training curves and the comparison with v9a are in
   [docs/newer-models-and-jev.md](docs/newer-models-and-jev.md) §3c. The JSON reports are
   attached to the release.
@@ -268,9 +305,11 @@ for one noul, 230 ms for the six-question request.
   answers such questions for drawings and cartoon characters.
 - Options are scored independently, so the model cannot compare options that differ
   only by contrast ("the larger one").
-- There is no "can't tell" answer yet. Every answer is a distribution over your options,
-  including answers the image does not show; `/v1/systemone` reports
-  `unknown_probability` 0 and `abstained` false.
+- "Can't tell" (v0.4.0) fires for facts the image hides: text too small or cut off, a hidden
+  side, something outside the frame. It does not fire when a rule in the state cannot be
+  decided from the photo and the record, which is most of ImajevBench's Unknown items.
+- A request without an image is answered against a blank grey image. There v0.4.0 abstains
+  where it should answer; v0.3.0 does not.
 
 ## Training your own
 
@@ -281,8 +320,8 @@ Everything that produced this checkpoint is in `src/peekaboolean`. The pipeline,
 2. `prepare_teacher.py`: a local Qwen3.6-35B-A3B (vLLM) writes one request per image
    and labels it. `--relabel-from` lets a second teacher (Qwen3-VL-30B-A3B) label the
    same questions, and the two are averaged. See the module docstring; it runs in its own
-   vLLM environment. `--unknown` (for the next release) adds a can't-tell option to every
-   labelling view and record- and rule-based states
+   vLLM environment. `--unknown` (v0.4.0) adds a can't-tell option to every
+   labelling view, record- and rule-based states, and questions about facts the image hides
 3. `prepare_v6.py`: mixes public and teacher rows, adds counting rubrics, tempers the
    teacher's probabilities against rows with known answers
 4. `prepare_age.py`: FairFace age, gender and child/adult questions
@@ -302,7 +341,7 @@ batches carry more tensors, and 1,024 file descriptors run out between DataLoade
 - Weights: CC BY-NC 4.0. Some training data only allows research use (DocVQA; AVA and
   AADB images, which the teacher wrote questions about) or carries GPL-3.0 (ChartQA). The
   weights are therefore released for research and non-commercial use. The teachers are
-  Apache-2.0. The v0.3.0 base model, LFM2.5-VL-450M, is under the
+  Apache-2.0. The base model of v0.3.0 and later, LFM2.5-VL-450M, is under the
   [LFM Open License v1.0](https://huggingface.co/LiquidAI/LFM2.5-VL-450M/blob/main/LICENSE), which
   conditions commercial use on staying under its revenue threshold; v0.2.0's SmolVLM base is
   Apache-2.0. Details are in the model card.
