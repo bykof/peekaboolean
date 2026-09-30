@@ -6,6 +6,10 @@
 The page (web/index.html) sends one image per POST /api/answer, base64 in a JSON body
 beside the request, and gets back exactly what `serve` prints. The model is loaded once;
 each request gets a thread, and a lock lets the model score one image at a time.
+
+POST /v1/systemone takes TypeSafe's Jev request with the `images` extension that imajev and
+its benchmark harness use (data URLs or base64), and answers in Jev's envelope. peekaboolean
+has no trained "can't tell", so `unknown_probability` is 0 and `abstained` false.
 """
 
 from __future__ import annotations
@@ -28,6 +32,28 @@ WEB = Path(__file__).with_name("web")
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/archivo.woff2": ("archivo.woff2", "font/woff2")}
 MAX_BODY = 64 * 1024 * 1024
+
+
+def request_image(req: dict, jev: bool) -> io.BytesIO:
+    """`/api/answer` carries one base64 `image`; Jev requests carry `images`, at most one here.
+    A Jev request without images is answered against a blank grey image, which the model
+    never trained on: text-only questions are outside what it learned."""
+    if not jev:
+        return io.BytesIO(base64.b64decode(req["image"], validate=True))
+    images = req.get("images") or []
+    if len(images) > 1:
+        raise ValueError("peekaboolean answers against one image per request")
+    if not images:
+        blank = io.BytesIO()
+        Image.new("RGB", (512, 512), (128, 128, 128)).save(blank, "PNG")
+        return io.BytesIO(blank.getvalue())
+    data = images[0].split(",", 1)[1] if images[0].startswith("data:") else images[0]
+    return io.BytesIO(base64.b64decode(data, validate=True))
+
+
+def jev_response(out: dict, model: str) -> dict:
+    answers = {qid: {**a, "unknown_probability": 0.0, "abstained": False} for qid, a in out["answers"].items()}
+    return {"model": model, "answers": answers, "usage": out.get("usage", {})}
 
 
 def make_handler(answer, info: dict):
@@ -56,8 +82,9 @@ def make_handler(answer, info: dict):
 
         def do_POST(self):
             path = self.path.split("?", 1)[0]
-            if path != "/api/answer":
+            if path not in ("/api/answer", "/v1/systemone"):
                 return self._send(404, {"error": "not found", "scope": "request"})
+            jev = path == "/v1/systemone"
             if self.headers.get_content_type() != "application/json":
                 return self._send(415, {"error": "request body must be application/json", "scope": "request"})
             length = int(self.headers.get("Content-Length") or 0)
@@ -65,7 +92,7 @@ def make_handler(answer, info: dict):
                 return self._send(413, {"error": f"image is over {MAX_BODY * 3 // 4 >> 20} MiB", "scope": "image"})
             try:
                 req = json.loads(self.rfile.read(length))
-                image = io.BytesIO(base64.b64decode(req["image"], validate=True))
+                image = request_image(req, jev)
                 state, questions = req.get("state", ""), req["questions"]
             except KeyError as e:
                 return self._send(400, {"error": f"request body is missing {e}", "scope": "request"})
@@ -84,7 +111,7 @@ def make_handler(answer, info: dict):
                 return self._send(400, {"error": str(e), "scope": "request"})
             except Exception as e:
                 return self._send(500, {"error": repr(e), "scope": "server"})
-            self._send(200, out)
+            self._send(200, jev_response(out, info.get("name", "peekaboolean")) if jev else out)
 
         def _send(self, status, body, ctype="application/json"):
             if not isinstance(body, bytes):
@@ -139,7 +166,8 @@ def main():
     device = select_device(args.device)
     print(f"[ui] loading {args.adapter} on {device} ...", flush=True)
     model, processor, calib = load(args.adapter, args.model, device, merge=True)
-    info.update(model=model.model_id, adapter=args.adapter, device=str(device), max_edge=args.max_edge)
+    info.update(model=model.model_id, adapter=args.adapter, device=str(device), max_edge=args.max_edge,
+                name=Path(args.adapter).name)
     url = f"http://127.0.0.1:{server.server_port}/"
     print(f"[ui] {url}  (ctrl+c stops)", flush=True)
     if not args.no_browser:

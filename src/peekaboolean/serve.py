@@ -84,20 +84,25 @@ def confidence(p: torch.Tensor) -> float:
     return 1.0 if k < 2 else float((k * p.max() - 1) / (k - 1))
 
 
+# Nine places keep a 255-option distribution summing to 1 within 1e-6 after rounding, the
+# tolerance Jev-style harnesses (ImajevBench) check.
+DIGITS = 9
+
+
 def answer_for(ex: Example, probs: torch.Tensor) -> dict:
     names = ex.names or [str(i) for i in range(probs.numel())]
-    table = {n: round(float(v), 6) for n, v in zip(names, probs)}
+    table = {n: round(float(v), DIGITS) for n, v in zip(names, probs)}
     if ex.qtype == "noul":
         # The docs return a bare probability here: no argmax, so no confidence either.
-        return {"type": "noul", "noul": round(float(probs[1]), 6)}
+        return {"type": "noul", "noul": table["true"]}
     if ex.qtype == "choice":
         return {"type": "choice", "choice": names[int(probs.argmax())],
-                "probabilities": table, "confidence": round(confidence(probs), 6)}
+                "probabilities": table, "confidence": round(confidence(probs), DIGITS)}
     # score: the level index weighted by its probability, which is why the levels have
     # to be ordered and why the loss that trained them was EMD and not cross-entropy.
-    idx = torch.arange(probs.numel(), dtype=probs.dtype)
-    return {"type": "score", "score": round(float((probs * idx).sum()), 6),
-            "probabilities": table, "confidence": round(confidence(probs), 6),
+    # Computed from the reported probabilities, so a caller who re-derives it gets the same.
+    return {"type": "score", "score": round(sum(i * p for i, p in enumerate(table.values())), DIGITS),
+            "probabilities": table, "confidence": round(confidence(probs), DIGITS),
             "legend": dict(zip(names, ex.candidates))}
 
 
@@ -488,7 +493,7 @@ def evaluate(model, processor, state, questions, image_path, calib=None,
     answers = {}
     for (qid, ex), lg in zip(examples, logits):
         t = temperature_for(calib or {}, ex.qtype, lg.numel())
-        probs = torch.softmax(lg.float() / t, dim=-1).cpu()
+        probs = torch.softmax(lg.cpu().double() / t, dim=-1)   # float64 (not on MPS): sums to 1 before rounding
         answers[qid] = answer_for(ex, probs)
     return {"answers": answers}
 

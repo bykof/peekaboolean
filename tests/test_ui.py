@@ -33,8 +33,8 @@ def fake_answer(state, questions, image):
     return {"answers": {"kind": {"type": "choice", "choice": "photo"}}, "size": list(img.size)}
 
 
-def post(base, body, headers=None):
-    req = urllib.request.Request(base + "/api/answer", data=json.dumps(body).encode(),
+def post(base, body, headers=None, path="/api/answer"):
+    req = urllib.request.Request(base + path, data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json", **(headers or {})})
     try:
         with urllib.request.urlopen(req) as r:
@@ -92,6 +92,17 @@ def test_ui_server():
 
         status, out = post(base, {"questions": {"kind": None}, "image": png_b64()})
         assert (status, out["scope"]) == (400, "request"), out
+
+        # Jev's envelope, with imajev's `images` extension as data URLs; none means a blank image.
+        url = "data:image/png;base64," + png_b64()
+        status, out = post(base, {"state": {"record": 1}, "questions": QUESTIONS, "images": [url]}, path="/v1/systemone")
+        assert status == 200 and set(out) == {"model", "answers", "usage"}, out
+        assert out["answers"]["kind"] == {"type": "choice", "choice": "photo", "unknown_probability": 0.0,
+                                          "abstained": False}, out
+        status, out = post(base, {"questions": QUESTIONS}, path="/v1/systemone")
+        assert status == 200 and out["answers"]["kind"]["choice"] == "photo", out
+        status, out = post(base, {"questions": QUESTIONS, "images": [url, url]}, path="/v1/systemone")
+        assert (status, out["scope"]) == (400, "request") and "one image" in out["error"], out
     finally:
         server.shutdown()
 
