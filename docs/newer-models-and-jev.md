@@ -415,6 +415,83 @@ its own evaluation.
   - It is a clean error, not a wrong answer. Still, escape these strings in `render` before
     serving untrusted text.
 
+## 8b. imajev, and peekaboolean on ImajevBench
+
+[imajev](https://github.com/mohit67890/imajev) is #1 of 49 on Image JevBench v0.1.3 (imajev-4b,
+composite 76.4, sealed accuracy 83.3%). It is the nearest relative of this project; everything below is
+from its README, code and the [ImajevBench dataset](https://huggingface.co/datasets/mohit67890/imajev-bench)
+unless marked as measured.
+
+**What it is.**
+- **Base and adapter.** Qwen3.5-2B/4B/9B (Apache-2.0) with LoRA (r16/α32; the 4B's latest is r64) on
+  every language projection, including DeltaNet. The vision tower is frozen.
+- **Readout.** A 255-code decision head at one position per question: options are listed in the prompt,
+  and each question is one pass. Four option orders are averaged ("rotations").
+- **`unknown`.** A first-class trained option. Answers carry `unknown_probability` and `abstained`.
+- **Data.** About 1M decisions:
+  - 504k human-labelled, from 36 licence-checked sources, 21 of them image sources;
+  - 475k pseudo-labelled by its 9B, kept only when two option orders agree;
+  - 72k photo-vs-record and two-photo decisions;
+  - 18k hard typed questions, kept only when open teachers agree;
+  - 40k soft-target rows.
+
+  The shipped adapter is a 50/50 weight average of the last two stages. The whole project used
+  about $676 of GPU time.
+- **Calibration.** One temperature per size (1.3–1.7), plus a photo-only bucket.
+- **Serving.** `POST /v1/systemone` with `images` (data URLs), up to two images. About 0.1 s raw per
+  decision on an H100, 0.35 s with four rotations; MLX weights for the Mac.
+
+**Measured: peekaboolean on ImajevBench v2.0-lite, through its own harness.**
+- The harness is `imajev_bench run --adapter imajev-http` against peekaboolean's new
+  `POST /v1/systemone`, on the M1 Max at 512 px, with the benchmark's own `_correct`.
+- Test gold is withheld (279 items), so the test predictions exist but have to be scored by the
+  maintainer.
+- The dev and calibration splits have gold: 254 items, 24 of them "can't tell".
+
+| Track (dev + calibration) | n | v0.2.0 (SmolVLM) | LFM2.5-VL-450M, step 9,000 (uncalibrated) |
+|---|---|---|---|
+| all | 254 | 104 (40.9%) | 110 (43.3%) |
+| visual | 103 | 50 (48.5%) | 59 (57.3%) |
+| joint (photo + record or rule) | 113 | 41 (36.3%) | 40 (35.4%) |
+| text only, answered against a blank image | 38 | 13 (34.2%) | 11 (28.9%) |
+| of these, "can't tell" references | 24 | 0 | 0 |
+
+For scale, on the test split: SmolVLM2-2.2B scores 28.7%, untuned Qwen3.5-2B 60.2%, imajev-2b
+70.3–71.7% and imajev-4b 83.9%. Different split, so compare loosely.
+
+**Where the gap is**, by family (dev + calibration, v0.2.0 / LFM2.5):
+- **Rules from the state applied to the photo** (`threshold_rule`, `rule_exception`,
+  `multi_step_rule`): about 35–40%. Choice-type threshold rules are the worst: 6/16 and 1/16.
+  The teachers never wrote requests like these. The states in the training data are personas,
+  contexts or records, but questions rarely require applying a rule stated there.
+- **"Can't tell"**: 0/24. There is no abstain output. On the test split this caps peekaboolean
+  at 92.5%.
+- **Comparison** (31 items): 13/31, the independent-options limit (REPORT §6).
+- **Counting** (20): 5 → 8. Text reading (31) is already 23/31 for both, and attribute state 4 → 9/9.
+- **Text-only reasoning** (date arithmetic, numerical reconciliation): peekaboolean was never
+  trained without an image.
+
+**What peekaboolean can adopt, ranked:**
+1. **A trained `unknown`.** Add an "it cannot be determined" candidate row per question, scored
+   like any option, and return `unknown_probability` / `abstained` for real. The labels come
+   from the teachers: offer a "cannot be determined" letter in `prepare_teacher.py`'s labelling
+   prompt and keep its mass.
+2. **Rule- and record-grounded requests.**
+   - A teacher authoring mode whose state is a record or a rule, with questions that need it
+     applied to what is visible: thresholds, exceptions, photo against listing fields.
+   - imajev's generators for these are Apache-2.0: `scripts/v2/state_grounded/` builds the
+     photo-vs-record pairs and edits.
+3. **Contrast.** The opt-in listing node of §5 for comparison questions.
+4. **Ground-truth counts** instead of teacher counts (§7).
+5. **imajev's licence-checked, human-labelled image sources**, with receipts from `scripts/v2/write_license_receipts*.py` and fetchers for Commons, Open Images and PD12M, for label
+   quality and for the commercial retrain.
+6. **Checkpoint soup** (50/50 LoRA average) as a cheap alternative to picking checkpoints by hand.
+
+**What doesn't fit:**
+- **Qwen3.5 backbones.** Too slow in PyTorch MPS (§3b).
+- **Four rotations.** peekaboolean's pointwise scoring is order-invariant by construction.
+- **imajev's reasoning-heavy text stages.** peekaboolean serves image requests.
+
 ## 9. Next steps
 
 1. **Finish `runs/v10-lfm25`**, then run `full_test` on the v9b test split and compare it
