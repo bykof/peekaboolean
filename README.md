@@ -21,9 +21,9 @@ never saw in training works as well as a familiar one.
   wrote and labelled requests, and Qwen3-VL-30B-A3B labelled them again.
 - Can't tell: every answer carries `unknown_probability` and `abstained`, from a trained
   candidate "It cannot be determined from the image and the given information." (new in v0.4.0)
-- Latency: 247 ms p50 (248 ms p95) for a six-question request (28 options) on an M1 Max
-  (MPS, fp16, torch 2.14, 512 px); 75 ms p95 on an RTX PRO 6000. The M1 Pro, where v0.2.0
-  measured about 400 ms p95, has not been re-measured
+- Latency: 248 ms p50 (264 ms p95) for a six-question request (28 options) on an M1 Max
+  (MPS, fp16, torch 2.14, 512 px); 75 ms p95 on an RTX PRO 6000. Not re-measured on an
+  M1 Pro: there v0.1.0 took about 400 ms p95 in fp32 on torch 2.11, against 327 ms on the M1 Max
 - Weights: [GitHub release v0.4.0](https://github.com/bykof/peekaboolean/releases/tag/v0.4.0) and
   [bykof/peekaboolean-450m](https://huggingface.co/bykof/peekaboolean-450m) (CC BY-NC 4.0, see [Licence](#licence));
   earlier checkpoints stay at [v0.3.0](https://github.com/bykof/peekaboolean/releases/tag/v0.3.0) (no can't-tell,
@@ -170,9 +170,9 @@ mkdir -p data/demo && tail -n +2 docs/demo-images.tsv | while IFS=$'\t' read -r 
   requests and `shared` above
 - `naive`: one forward pass per question; the reference path
 
-On an M1 Max (MPS, fp16, torch 2.14, 512 px), request6 on v0.2.0's SmolVLM takes 180 ms
-p50 through `tree` against 247 ms through `shared`. LFM2.5-VL (v0.3.0 and later) has short-convolution
-layers, so `auto` scores request6 through `shared` there: 200 ms p50 for v0.3.0, 247 ms for v0.4.0,
+On an M1 Max (MPS, fp16, torch 2.14, 512 px), request6 on v0.2.0's SmolVLM takes 182 ms
+p50 through `tree` against 240 ms through `shared`. LFM2.5-VL (v0.3.0 and later) has short-convolution
+layers, so `auto` scores request6 through `shared` there: 201 ms p50 for v0.3.0, 248 ms for v0.4.0,
 which scores one more candidate per question.
 
 `serve --check` asserts that the three agree. `python -m peekaboolean.benchmark` measures warm
@@ -211,12 +211,12 @@ rows). Image splits are by content hash, so no test image was seen in training.
 - **Can't tell** works on questions like the ones the teachers could not answer: 367 choice, 67 noul
   and 229 score questions in the test split. On ImajevBench it still gets none of the 24 Unknown
   items, and its 11 abstentions there were all text-only items (see Limitations).
-- **Latency:** 247 ms per request6 on the M1 Max, against 200 ms for v0.3.0.
+- **Latency:** 248 ms p50 per request6 on the M1 Max, against 201 ms for v0.3.0.
 - **Details:** [docs/REPORT.md](docs/REPORT.md) §4.10 and the JSON reports attached to the release.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/latency-dark.svg">
-  <img alt="p95 latency of a six-question request: v0.4.0 248 ms, v0.3.0 202 ms and v0.2.0 187 ms on an M1 Max, v0.4.0 75 ms on an RTX PRO 6000, against a 500 ms budget" src="docs/img/latency-light.svg" width="760">
+  <img alt="p95 latency of a six-question request: v0.4.0 264 ms, v0.3.0 208 ms and v0.2.0 190 ms on an M1 Max, v0.4.0 75 ms on an RTX PRO 6000, against a 500 ms budget" src="docs/img/latency-light.svg" width="760">
 </picture>
 
 ### v0.3.0
@@ -291,7 +291,8 @@ splits. Per-group JSON reports are attached to the v0.1.0 release.
 
 Mac latency (M1 Pro, MPS, fp32, `--mode auto`, 512 px): a six-question request with 28
 options measured about 380–400 ms p95 for the 500M backbone. The 256M v6 model: 116 ms
-for one noul, 230 ms for the six-question request.
+for one noul, 230 ms for the six-question request. The same code and checkpoint take 327 ms
+p95 on an M1 Max.
 
 ## Limitations
 

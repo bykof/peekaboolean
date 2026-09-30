@@ -20,16 +20,16 @@
 <text x="624.0" y="68" font-size="11" fill="#52514e">500 ms budget</text>
 <text x="208" y="77" font-size="12.5" fill="#0b0b0b" text-anchor="end">v0.4.0 (v11)</text>
 <text x="208" y="92" font-size="11" fill="#898781" text-anchor="end">M1 Max, LFM2.5-VL-450M</text>
-<g><title>v0.4.0 (v11), M1 Max, LFM2.5-VL-450M: 248 ms</title><path d="M220,66 H414.4 A4,4 0 0 1 418.4,70 V76 A4,4 0 0 1 414.4,80 H220 Z" fill="#2a78d6"/></g>
-<text x="424.4" y="77" font-size="11.5" font-weight="600" fill="#0b0b0b">248 ms</text>
+<g><title>v0.4.0 (v11), M1 Max, LFM2.5-VL-450M: 264 ms</title><path d="M220,66 H427.2 A4,4 0 0 1 431.2,70 V76 A4,4 0 0 1 427.2,80 H220 Z" fill="#2a78d6"/></g>
+<text x="437.2" y="77" font-size="11.5" font-weight="600" fill="#0b0b0b">264 ms</text>
 <text x="208" y="117" font-size="12.5" fill="#0b0b0b" text-anchor="end">v0.3.0 (v10b)</text>
 <text x="208" y="132" font-size="11" fill="#898781" text-anchor="end">M1 Max, LFM2.5-VL-450M</text>
-<g><title>v0.3.0 (v10b), M1 Max, LFM2.5-VL-450M: 202 ms</title><path d="M220,106 H377.6 A4,4 0 0 1 381.6,110 V116 A4,4 0 0 1 377.6,120 H220 Z" fill="#2a78d6"/></g>
-<text x="387.6" y="117" font-size="11.5" font-weight="600" fill="#0b0b0b">202 ms</text>
+<g><title>v0.3.0 (v10b), M1 Max, LFM2.5-VL-450M: 208 ms</title><path d="M220,106 H382.4 A4,4 0 0 1 386.4,110 V116 A4,4 0 0 1 382.4,120 H220 Z" fill="#2a78d6"/></g>
+<text x="392.4" y="117" font-size="11.5" font-weight="600" fill="#0b0b0b">208 ms</text>
 <text x="208" y="157" font-size="12.5" fill="#0b0b0b" text-anchor="end">v0.2.0 (v9b)</text>
 <text x="208" y="172" font-size="11" fill="#898781" text-anchor="end">M1 Max, SmolVLM-500M</text>
-<g><title>v0.2.0 (v9b), M1 Max, SmolVLM-500M: 187 ms</title><path d="M220,146 H365.6 A4,4 0 0 1 369.6,150 V156 A4,4 0 0 1 365.6,160 H220 Z" fill="#2a78d6"/></g>
-<text x="375.6" y="157" font-size="11.5" font-weight="600" fill="#0b0b0b">187 ms</text>
+<g><title>v0.2.0 (v9b), M1 Max, SmolVLM-500M: 190 ms</title><path d="M220,146 H368.0 A4,4 0 0 1 372.0,150 V156 A4,4 0 0 1 368.0,160 H220 Z" fill="#2a78d6"/></g>
+<text x="378.0" y="157" font-size="11.5" font-weight="600" fill="#0b0b0b">190 ms</text>
 <text x="208" y="197" font-size="12.5" fill="#0b0b0b" text-anchor="end">v0.4.0 (v11)</text>
 <text x="208" y="212" font-size="11" fill="#898781" text-anchor="end">RTX PRO 6000, bf16</text>
 <g><title>v0.4.0 (v11), RTX PRO 6000, bf16: 75 ms</title><path d="M220,186 H276.0 A4,4 0 0 1 280.0,190 V196 A4,4 0 0 1 276.0,200 H220 Z" fill="#2a78d6"/></g>
