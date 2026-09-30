@@ -17,6 +17,8 @@ request of N questions re-encodes the picture N*K times. `--mode shared` runs th
 once, keeps its KV cache, and scores every candidate as a short suffix against it: one
 vision pass for the whole request, whatever N and K are. `--check` asserts the two
 agree, because an optimisation that quietly moves the numbers is worse than none.
+`--mode tree` packs the whole request into one sequence under a tree mask, so even the
+question text is computed once per question; `auto` uses it on plain-attention backbones.
 
 Questions are built through `data.to_example`, the same function the trainer uses, so a
 rubric cannot reach the model in one shape during training and another when served.
@@ -318,6 +320,91 @@ def score_single(model, processor, examples, image, max_edge=1024, chunk=None,
     return [flat[a:b] for a, b in spans]
 
 
+# Backbones whose LM is plain attention over 1D positions. A short convolution (LFM2) or a
+# recurrent layer (Qwen3.5) mixes neighbouring packed tokens, and Qwen3-VL's positions are 3D.
+TREE_FAMILIES = ("idefics3", "smolvlm", "internvl")
+# ponytail: a dense T x T mask; requests packing more tokens go through score_shared instead.
+TREE_MAX_TOKENS = 4096
+
+
+def _common_length(rows: list[list[int]]) -> int:
+    """Tokens every row starts with, leaving each row at least one token of its own."""
+    n = min(map(len, rows)) - 1
+    for i in range(n):
+        if any(r[i] != rows[0][i] for r in rows):
+            return i
+    return max(n, 0)
+
+
+@torch.no_grad()
+def score_tree(model, processor, examples, image, max_edge=1024, chunk=32,
+               report: dict | None = None) -> list[torch.Tensor]:
+    """The whole request in ONE forward, with nothing computed twice.
+
+    One sequence holds the prefix (image + state), then each question's shared text once,
+    then each candidate's own tokens. A 4D mask lets a token attend to its ancestor segments
+    and to the earlier tokens of its own segment, and each candidate's positions continue
+    from its question's end, so every candidate sees exactly the ids and positions of its
+    one-piece prompt: the naive path's answer with a third of its tokens.
+    """
+    device = next(model.head.parameters()).device
+    ms = report.setdefault("ms", {}) if report is not None else None
+    clock = [time.perf_counter()]
+    def mark(stage):
+        if ms is None: return
+        synchronize(device); now = time.perf_counter()
+        ms[stage] = ms.get(stage, 0.0) + (now - clock[0]) * 1000; clock[0] = now
+
+    texts, spans = [], []
+    for _, ex in examples:
+        prompts = [processor.apply_chat_template(
+            [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": t}]}],
+            tokenize=False, add_generation_prompt=True)
+            for t in candidate_prompts(ex, getattr(processor, "jev_prompt", "judge"))]
+        spans.append((len(texts), len(texts) + len(prompts)))
+        texts.extend(prompts)
+    mark("chat_template")
+    cut = _split_point(texts, processor.tokenizer)
+    img = image if image is not None else load_image(examples[0][1].image, max_edge)
+    prefix = processor(text=[texts[0][:cut]], images=[[img]], return_tensors="pt")
+    mark("image_preprocess")
+
+    enc = lambda batch: processor.tokenizer(batch, add_special_tokens=False)["input_ids"]
+    ids = prefix["input_ids"][0].tolist()
+    pos, seg, parent = list(range(len(ids))), [0] * len(ids), [-1]   # segment 0: the prefix, the root
+    start, leaves, where = len(ids), [], []
+    for a, b in spans:
+        unique = list(dict.fromkeys(t[cut:] for t in texts[a:b]))
+        where += [len(leaves) + unique.index(t[cut:]) for t in texts[a:b]]
+        rows = enc(unique)
+        shared = _common_length(rows) if len(rows) > 1 else 0
+        node = 0
+        if shared:
+            parent.append(0); node = len(parent) - 1
+            ids += rows[0][:shared]; pos += range(start, start + shared); seg += [node] * shared
+        for row in rows:
+            parent.append(node); leaf = len(parent) - 1
+            ids += row[shared:]; pos += range(start + shared, start + len(row)); seg += [leaf] * (len(row) - shared)
+            leaves.append(len(ids) - 1)
+    if len(ids) > TREE_MAX_TOKENS:
+        return score_shared(model, processor, examples, image, max_edge, chunk, report=report)
+    ancestor = torch.eye(len(parent), dtype=torch.bool)
+    for s in range(1, len(parent)):
+        ancestor[s] |= ancestor[parent[s]]
+    seg = torch.tensor(seg)
+    mask = ancestor[seg[:, None], seg[None, :]] & torch.ones(len(ids), len(ids), dtype=torch.bool).tril()
+    inputs = {k: v for k, v in prefix.items() if k not in ("input_ids", "attention_mask", "mm_token_type_ids")}
+    inputs.update(input_ids=torch.tensor([ids]), attention_mask=mask[None, None], position_ids=torch.tensor([pos]))
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+    if report is not None:
+        report.update(prefix_tokens=int(prefix["input_ids"].shape[1]), tree_tokens=len(ids), sequences=len(texts))
+    mark("tokenize")
+    hidden = _inner(model)(**inputs, use_cache=False).last_hidden_state[0, torch.tensor(leaves, device=device)]
+    flat = model.head(hidden.float()).squeeze(-1)[torch.tensor(where, device=device)] * _signs(examples, processor, device)
+    mark("forward")
+    return [flat[a:b] for a, b in spans]
+
+
 # ----------------------------------------------------------------------------- driver
 
 # Up to this many candidate sequences, one pass (score_single) beats prefix-cache + suffix
@@ -380,13 +467,19 @@ def evaluate(model, processor, state, questions, image_path, calib=None,
     image = load_image(image_path, max_edge)
     if report is not None:
         report.setdefault("ms", {})["image_decode"] = (time.perf_counter() - started) * 1000
+    if mode == "auto" and model.family in TREE_FAMILIES:
+        mode = "tree"
     if mode == "auto":
         # Hybrid linear-attention backbones (Qwen3.5) keep a recurrent state, not a KV
         # cache the suffixes can share, so they always take the one-pass path.
         limit = SINGLE_PASS_MAX if model.family in ("idefics3", "smolvlm") else SINGLE_PASS_MAX_LONG_PREFIX
         mode = ("single" if model.family in NO_SHARED_CACHE
                 or sum(len(ex.candidates) for _, ex in examples) <= limit else "shared")
-    if mode == "shared":
+    if mode == "tree":
+        if model.family not in TREE_FAMILIES:
+            raise ValueError(f"--mode tree needs a plain-attention backbone ({', '.join(TREE_FAMILIES)})")
+        logits = score_tree(model, processor, examples, image, max_edge, chunk, report=report)
+    elif mode == "shared":
         logits = score_shared(model, processor, examples, image, max_edge, chunk, report=report)
     elif mode == "single":
         logits = score_single(model, processor, examples, image, max_edge, report=report)
@@ -435,7 +528,7 @@ def main():
     ap.add_argument("--image", required=True)
     ap.add_argument("--request", help="JSON file with {state, questions}; --demo if absent")
     ap.add_argument("--demo", action="store_true")
-    ap.add_argument("--mode", choices=["auto", "shared", "single", "naive"], default="auto")
+    ap.add_argument("--mode", choices=["auto", "tree", "shared", "single", "naive"], default="auto")
     ap.add_argument("--chunk", type=int, default=32, help="candidate sequences per forward")
     ap.add_argument("--max-edge", type=int, default=384)
     ap.add_argument("--calibration", default=None,
@@ -484,6 +577,8 @@ def check(model, processor, state, questions, image_path, max_edge, chunk):
     a = score_naive(model, processor, examples, image, max_edge, chunk)
     fast_paths = (("single", score_single),) if model.family in NO_SHARED_CACHE else \
         (("shared", score_shared), ("single", score_single))
+    if model.family in TREE_FAMILIES:
+        fast_paths += (("tree", score_tree),)
     for label, fast in fast_paths:
         _compare(label, examples, a, fast(model, processor, examples, image, max_edge, chunk))
 

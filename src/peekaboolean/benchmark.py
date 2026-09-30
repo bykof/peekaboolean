@@ -23,7 +23,7 @@ def main():
     ap.add_argument("--sizes", default="256,384,512")
     ap.add_argument("--repeats", type=int, default=30)
     ap.add_argument("--out", default=None)
-    ap.add_argument("--mode", choices=["auto", "shared", "single", "naive"], default="auto")
+    ap.add_argument("--mode", choices=["auto", "tree", "shared", "single", "naive"], default="auto")
     ap.add_argument("--dtype", choices=["auto", "float32", "float16", "bfloat16"], default="auto",
                     help="auto = bf16 on CUDA, fp16 on MPS, fp32 on CPU")
     ap.add_argument("--breakdown", action="store_true", help="also report median ms per serving stage")

@@ -108,7 +108,7 @@ def main():
     ap.add_argument("--model", default=None, help="inferred from adapter when omitted")
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
     ap.add_argument("--max-edge", type=int, default=512, help="calibrated at 256, 384 and 512")
-    ap.add_argument("--mode", choices=["auto", "shared", "single", "naive"], default="auto")
+    ap.add_argument("--mode", choices=["auto", "tree", "shared", "single", "naive"], default="auto")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true")
     args = ap.parse_args()
