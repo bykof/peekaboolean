@@ -439,9 +439,16 @@ def load(adapter: str, model_id: str | None = None, device: str = "auto", calibr
          merge: bool = False, dtype: torch.dtype | None = None):
     device = select_device(device)
     if not Path(adapter).is_dir():
-        # A Hub repo id such as "user/model"; huggingface_hub caches the download.
+        # A Hub repo id such as "user/model"; huggingface_hub caches the download. The configs
+        # come first, so a repo that is not an adapter fails before its weights download.
         from huggingface_hub import snapshot_download
-        adapter = snapshot_download(adapter, allow_patterns=["*.json", "*.safetensors", "head.pt"])
+        repo, adapter = adapter, snapshot_download(adapter, allow_patterns=["*.json"])
+        if (Path(adapter) / "adapter_config.json").exists():
+            adapter = snapshot_download(repo, allow_patterns=["*.json", "*.safetensors", "head.pt"])
+    if not (Path(adapter) / "adapter_config.json").exists():
+        raise ValueError(f"{adapter} has no adapter_config.json, so it is not a peekaboolean adapter. "
+                         "peekaboolean-think-35b (vLLM or MLX) runs with think/jevsrv.py or think/jevmlx.py, "
+                         "see think/README.md")
     if model_id is None:
         model_id = json.loads((Path(adapter) / "adapter_config.json").read_text())["base_model_name_or_path"]
     # Serving on MPS in fp16: probabilities within 0.003 of fp32 on the demo images, a
