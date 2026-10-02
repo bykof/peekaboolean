@@ -30,7 +30,7 @@ def nll(rows, eps, t):
 
 def fit(rows):
     grid_e = [10 ** (x / 4) for x in range(-40, 1)]  # 1e-10 .. 1
-    grid_t = [0.5 + 0.25 * i for i in range(31)]     # 0.5 .. 8
+    grid_t = [0.5 + 0.25 * i for i in range(79)]     # 0.5 .. 20
     return min(((nll(rows, e, t), e, t) for e in grid_e for t in grid_t))
 
 
