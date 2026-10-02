@@ -1,38 +1,48 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="760" height="252" viewBox="0 0 760 252" font-family="system-ui,-apple-system,Segoe UI,sans-serif">
-<rect width="760" height="252" fill="#1a1a19" rx="8"/>
-<text x="20" y="28" font-size="16" font-weight="600" fill="#ffffff">p95 latency, 6 questions / 28 options, 512 px</text>
-<text x="20" y="46" font-size="12" fill="#c3c2b7">--mode auto; the M1 Max runs MPS in fp16 on torch 2.14</text>
-<line x1="220.0" x2="220.0" y1="58" y2="218" stroke="#2c2c2a" stroke-width="1"/>
-<text x="220.0" y="234" font-size="11" fill="#898781" text-anchor="middle">0</text>
-<line x1="300.0" x2="300.0" y1="58" y2="218" stroke="#2c2c2a" stroke-width="1"/>
-<text x="300.0" y="234" font-size="11" fill="#898781" text-anchor="middle">100 ms</text>
-<line x1="380.0" x2="380.0" y1="58" y2="218" stroke="#2c2c2a" stroke-width="1"/>
-<text x="380.0" y="234" font-size="11" fill="#898781" text-anchor="middle">200 ms</text>
-<line x1="460.0" x2="460.0" y1="58" y2="218" stroke="#2c2c2a" stroke-width="1"/>
-<text x="460.0" y="234" font-size="11" fill="#898781" text-anchor="middle">300 ms</text>
-<line x1="540.0" x2="540.0" y1="58" y2="218" stroke="#2c2c2a" stroke-width="1"/>
-<text x="540.0" y="234" font-size="11" fill="#898781" text-anchor="middle">400 ms</text>
-<line x1="620.0" x2="620.0" y1="58" y2="218" stroke="#2c2c2a" stroke-width="1"/>
-<text x="620.0" y="234" font-size="11" fill="#898781" text-anchor="middle">500 ms</text>
-<line x1="700.0" x2="700.0" y1="58" y2="218" stroke="#2c2c2a" stroke-width="1"/>
-<text x="700.0" y="234" font-size="11" fill="#898781" text-anchor="middle">600 ms</text>
-<line x1="620.0" x2="620.0" y1="58" y2="218" stroke="#c3c2b7" stroke-width="1.5" stroke-dasharray="4 3"/>
-<text x="624.0" y="68" font-size="11" fill="#c3c2b7">500 ms budget</text>
-<text x="208" y="77" font-size="12.5" fill="#ffffff" text-anchor="end">v0.4.0 (v11)</text>
-<text x="208" y="92" font-size="11" fill="#898781" text-anchor="end">M1 Max, LFM2.5-VL-450M</text>
-<g><title>v0.4.0 (v11), M1 Max, LFM2.5-VL-450M: 264 ms</title><path d="M220,66 H427.2 A4,4 0 0 1 431.2,70 V76 A4,4 0 0 1 427.2,80 H220 Z" fill="#3987e5"/></g>
-<text x="437.2" y="77" font-size="11.5" font-weight="600" fill="#ffffff">264 ms</text>
-<text x="208" y="117" font-size="12.5" fill="#ffffff" text-anchor="end">v0.3.0 (v10b)</text>
-<text x="208" y="132" font-size="11" fill="#898781" text-anchor="end">M1 Max, LFM2.5-VL-450M</text>
-<g><title>v0.3.0 (v10b), M1 Max, LFM2.5-VL-450M: 208 ms</title><path d="M220,106 H382.4 A4,4 0 0 1 386.4,110 V116 A4,4 0 0 1 382.4,120 H220 Z" fill="#3987e5"/></g>
-<text x="392.4" y="117" font-size="11.5" font-weight="600" fill="#ffffff">208 ms</text>
-<text x="208" y="157" font-size="12.5" fill="#ffffff" text-anchor="end">v0.2.0 (v9b)</text>
-<text x="208" y="172" font-size="11" fill="#898781" text-anchor="end">M1 Max, SmolVLM-500M</text>
-<g><title>v0.2.0 (v9b), M1 Max, SmolVLM-500M: 190 ms</title><path d="M220,146 H368.0 A4,4 0 0 1 372.0,150 V156 A4,4 0 0 1 368.0,160 H220 Z" fill="#3987e5"/></g>
-<text x="378.0" y="157" font-size="11.5" font-weight="600" fill="#ffffff">190 ms</text>
-<text x="208" y="197" font-size="12.5" fill="#ffffff" text-anchor="end">v0.4.0 (v11)</text>
-<text x="208" y="212" font-size="11" fill="#898781" text-anchor="end">RTX PRO 6000, bf16</text>
-<g><title>v0.4.0 (v11), RTX PRO 6000, bf16: 75 ms</title><path d="M220,186 H276.0 A4,4 0 0 1 280.0,190 V196 A4,4 0 0 1 276.0,200 H220 Z" fill="#3987e5"/></g>
-<text x="286.0" y="197" font-size="11.5" font-weight="600" fill="#ffffff">75 ms</text>
-<line x1="220" x2="220" y1="58" y2="218" stroke="#383835" stroke-width="1"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="332" viewBox="0 0 760 332" font-family="system-ui,-apple-system,Segoe UI,sans-serif">
+<rect width="760" height="332" fill="#1a1a19" rx="8"/>
+<text x="20" y="28" font-size="16" font-weight="600" fill="#ffffff">p95 latency, 6 questions / 28 options (log scale)</text>
+<text x="20" y="46" font-size="12" fill="#c3c2b7">think-35b reasons before every answer; the 450M models score options directly</text>
+<line x1="253.6" x2="253.6" y1="58" y2="298" stroke="#2c2c2a" stroke-width="1"/>
+<text x="253.6" y="314" font-size="11" fill="#898781" text-anchor="middle">0.1 s</text>
+<line x1="365.2" x2="365.2" y1="58" y2="298" stroke="#2c2c2a" stroke-width="1"/>
+<text x="365.2" y="314" font-size="11" fill="#898781" text-anchor="middle">1 s</text>
+<line x1="476.8" x2="476.8" y1="58" y2="298" stroke="#2c2c2a" stroke-width="1"/>
+<text x="476.8" y="314" font-size="11" fill="#898781" text-anchor="middle">10 s</text>
+<line x1="588.4" x2="588.4" y1="58" y2="298" stroke="#2c2c2a" stroke-width="1"/>
+<text x="588.4" y="314" font-size="11" fill="#898781" text-anchor="middle">100 s</text>
+<line x1="700.0" x2="700.0" y1="58" y2="298" stroke="#2c2c2a" stroke-width="1"/>
+<text x="700.0" y="314" font-size="11" fill="#898781" text-anchor="middle">1000 s</text>
+<line x1="331.6" x2="331.6" y1="58" y2="298" stroke="#c3c2b7" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="335.6" y="292" font-size="11" fill="#c3c2b7">0.5 s budget of the 450M models</text>
+<text x="208" y="77" font-size="12.5" fill="#ffffff" text-anchor="end">think-35b (v0.5.0)</text>
+<text x="208" y="92" font-size="11" fill="#898781" text-anchor="end">RTX PRO 6000, 4 samples</text>
+<g><title>think-35b (v0.5.0), RTX PRO 6000, 4 samples: 74.27 s</title><path d="M220,66 H570.0 A4,4 0 0 1 574.0,70 V76 A4,4 0 0 1 570.0,80 H220 Z" fill="#3987e5"/></g>
+<rect x="577.0" y="65" width="34" height="16" fill="#1a1a19"/>
+<text x="580.0" y="77" font-size="11.5" font-weight="600" fill="#ffffff">74 s</text>
+<text x="208" y="117" font-size="12.5" fill="#ffffff" text-anchor="end">think-35b (v0.5.0)</text>
+<text x="208" y="132" font-size="11" fill="#898781" text-anchor="end">M1 Max, MLX 8-bit, 1 sample</text>
+<g><title>think-35b (v0.5.0), M1 Max, MLX 8-bit, 1 sample: 202.14 s</title><path d="M220,106 H618.5 A4,4 0 0 1 622.5,110 V116 A4,4 0 0 1 618.5,120 H220 Z" fill="#3987e5"/></g>
+<rect x="625.5" y="105" width="41" height="16" fill="#1a1a19"/>
+<text x="628.5" y="117" font-size="11.5" font-weight="600" fill="#ffffff">202 s</text>
+<text x="208" y="157" font-size="12.5" fill="#ffffff" text-anchor="end">450m (v0.4.0)</text>
+<text x="208" y="172" font-size="11" fill="#898781" text-anchor="end">M1 Max, LFM2.5-VL-450M</text>
+<g><title>450m (v0.4.0), M1 Max, LFM2.5-VL-450M: 0.264 s</title><path d="M220,146 H296.6 A4,4 0 0 1 300.6,150 V156 A4,4 0 0 1 296.6,160 H220 Z" fill="#5d5c56"/></g>
+<rect x="303.6" y="145" width="48" height="16" fill="#1a1a19"/>
+<text x="306.6" y="157" font-size="11.5" font-weight="600" fill="#ffffff">264 ms</text>
+<text x="208" y="197" font-size="12.5" fill="#ffffff" text-anchor="end">450m (v0.3.0)</text>
+<text x="208" y="212" font-size="11" fill="#898781" text-anchor="end">M1 Max, LFM2.5-VL-450M</text>
+<g><title>450m (v0.3.0), M1 Max, LFM2.5-VL-450M: 0.208 s</title><path d="M220,186 H285.1 A4,4 0 0 1 289.1,190 V196 A4,4 0 0 1 285.1,200 H220 Z" fill="#5d5c56"/></g>
+<rect x="292.1" y="185" width="48" height="16" fill="#1a1a19"/>
+<text x="295.1" y="197" font-size="11.5" font-weight="600" fill="#ffffff">208 ms</text>
+<text x="208" y="237" font-size="12.5" fill="#ffffff" text-anchor="end">500m (v0.2.0)</text>
+<text x="208" y="252" font-size="11" fill="#898781" text-anchor="end">M1 Max, SmolVLM-500M</text>
+<g><title>500m (v0.2.0), M1 Max, SmolVLM-500M: 0.19 s</title><path d="M220,226 H280.7 A4,4 0 0 1 284.7,230 V236 A4,4 0 0 1 280.7,240 H220 Z" fill="#5d5c56"/></g>
+<rect x="287.7" y="225" width="48" height="16" fill="#1a1a19"/>
+<text x="290.7" y="237" font-size="11.5" font-weight="600" fill="#ffffff">190 ms</text>
+<text x="208" y="277" font-size="12.5" fill="#ffffff" text-anchor="end">450m (v0.4.0)</text>
+<text x="208" y="292" font-size="11" fill="#898781" text-anchor="end">RTX PRO 6000, bf16</text>
+<g><title>450m (v0.4.0), RTX PRO 6000, bf16: 0.075 s</title><path d="M220,266 H235.7 A4,4 0 0 1 239.7,270 V276 A4,4 0 0 1 235.7,280 H220 Z" fill="#5d5c56"/></g>
+<rect x="242.7" y="265" width="41" height="16" fill="#1a1a19"/>
+<text x="245.7" y="277" font-size="11.5" font-weight="600" fill="#ffffff">75 ms</text>
+<line x1="220" x2="220" y1="58" y2="298" stroke="#383835" stroke-width="1"/>
 </svg>

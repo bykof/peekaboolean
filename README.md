@@ -34,6 +34,15 @@ never saw in training works as well as a familiar one.
 
 How it was built and what did and did not work: [docs/REPORT.md](docs/REPORT.md).
 
+**v0.5.0 adds a second, large model: [peekaboolean-think-35b](think/README.md).** Same request and response, but it
+reasons before it answers: Qwen3.6-35B-A3B with a LoRA, reading the option probabilities from the answer letter
+after the reasoning. It is far more accurate than the 450M model and than imajev-4b ([results](#v050-peekaboolean-think-35b)),
+and far slower: about a minute per six-question request on a GPU. It runs on a 64 GB Mac in 8-bit MLX. Weights:
+[release v0.5.0](https://github.com/bykof/peekaboolean/releases/tag/v0.5.0),
+[bykof/peekaboolean-think-35b](https://huggingface.co/bykof/peekaboolean-think-35b) (adapter) and
+[bykof/peekaboolean-think-35b-mlx-8bit](https://huggingface.co/bykof/peekaboolean-think-35b-mlx-8bit) (Mac).
+Report: [docs/think-35b.md](docs/think-35b.md).
+
 ## Quickstart
 
 ```bash
@@ -183,13 +192,46 @@ Calibration temperatures were fitted separately for 256, 384 and 512 px. Serve a
 
 ## Results
 
+### v0.5.0: peekaboolean-think-35b
+
+peekaboolean-think-35b, imajev-4b (run by us as shipped: its server, 4 option rotations, its calibration file) and
+v0.4.0 got the same requests on the same server.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/quality-dark.svg">
+  <img alt="Grouped bar chart of accuracy: peekaboolean-think-35b against imajev-4b and v0.4.0. ImajevBench dev plus calibration 96.5, 79.9 and 46.5 percent; RealJev 78.4, 73.1 and 56.5; imajev's held-out exam 65.6, 58.0 and 33.6; JevBench hard 92.8, 71.2 and 42.3" src="docs/img/quality-light.svg" width="760">
+</picture>
+
+| Benchmark | **think-35b (v0.5.0)** | imajev-4b | 450m (v0.4.0) |
+| --- | --- | --- | --- |
+| ImajevBench v2.0-lite, dev + calibration (254 items, its own scorer) | **245 (96.5%)** | 203 (79.9%) | 118 (46.5%) |
+| RealJev: 2,100 human-labelled real-image items from 8 public sets | **78.4%** | 73.1% | 56.5% |
+| imajev's held-out real-photo exam (its own converters, 1,779 items) | **65.6%** | 58.0% | 33.6% |
+| JevBench public hard / original / easy (text only, its own harness) | **103 / 72 / 48** | 79 / 71 / 48 | 47 / 36 / 35 |
+| ECE on RealJev / held-out exam, with `calibration.json` | **0.038 / 0.055** | 0.080 / 0.072 | 0.075 / 0.115 |
+
+- **Against imajev-4b:** +5.3 points on RealJev [+3.5, +7.1] and +7.6 on the held-out exam [+5.1, +10.3]
+  (paired, group bootstrap). It loses on image-quality scoring (LIVE, 32.5% against 57.2%) and POPE adversarial (−4.0).
+- **v0.4.0** takes one image, so the 80 two-image RealJev items and the 179 two-image exam items count as wrong.
+- **What it costs:** request6 takes about a minute on one GPU (four reasoning samples per question), against 75 ms for
+  the 450M model. On an M1 Max the 8-bit MLX model scores the ImajevBench calibration split 76/81, as on the GPU.
+- **Details:** [docs/think-35b.md](docs/think-35b.md): method, every table, calibration, the Qwen3.8-27B attempt and
+  the limitations.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/latency-dark.svg">
+  <img alt="p95 latency of a six-question request on a log scale: think-35b 74 s on an RTX PRO 6000 with four samples and 202 s on an M1 Max with one sample; the 450M models 264, 208 and 190 ms on an M1 Max and 75 ms on an RTX PRO 6000, against their 0.5 s budget" src="docs/img/latency-light.svg" width="760">
+</picture>
+
+### v0.4.0
+
 v0.4.0 (v11) against v0.3.0 (v10b). Both models are scored on the same rows: the held-out test
 split of v0.4.0's mixture, 512 px, 31,000 questions (v0.2.0's test split plus the new teacher
 rows). Image splits are by content hash, so no test image was seen in training.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/quality-dark.svg">
-  <img alt="Grouped bar chart: v0.4.0 against v0.3.0 on ten groups of the v0.4.0 test split; the two are within 1.3 points of each other on every group" src="docs/img/quality-light.svg" width="760">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/quality-v0.4.0-dark.svg">
+  <img alt="Grouped bar chart: v0.4.0 against v0.3.0 on ten groups of the v0.4.0 test split; the two are within 1.3 points of each other on every group" src="docs/img/quality-v0.4.0-light.svg" width="760">
 </picture>
 
 | Group | v0.3.0 (v10b) | **v0.4.0 (v11)** |
@@ -213,11 +255,6 @@ rows). Image splits are by content hash, so no test image was seen in training.
   items, and its 11 abstentions there were all text-only items (see Limitations).
 - **Latency:** 248 ms p50 per request6 on the M1 Max, against 201 ms for v0.3.0.
 - **Details:** [docs/REPORT.md](docs/REPORT.md) §4.10 and the JSON reports attached to the release.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/latency-dark.svg">
-  <img alt="p95 latency of a six-question request: v0.4.0 264 ms, v0.3.0 208 ms and v0.2.0 190 ms on an M1 Max, v0.4.0 75 ms on an RTX PRO 6000, against a 500 ms budget" src="docs/img/latency-light.svg" width="760">
-</picture>
 
 ### v0.3.0
 

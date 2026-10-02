@@ -188,5 +188,7 @@ server, take four times as long.
 - **Licences.** The base is Apache-2.0. The adapter was trained on traces over datasets with mixed licences
   (some non-commercial or research-only), so the adapter and the merged weights are released under CC BY-NC 4.0,
   like the earlier peekaboolean releases.
-- **Speed was not a goal.** A decision takes seconds on one GPU (four reasoning samples of a few hundred tokens each)
-  against imajev's ~0.35 s.
+- **Speed was not a goal.** request6 (six questions, 28 options, `think/lat6.py`) takes 58 s p50 and 74 s p95 on
+  one RTX PRO 6000 with four reasoning samples per question, and 200 s p50 (202 s p95) on the M1 Max with one sample, against 75 ms
+  for the 450M model on the same GPU and imajev's ~0.35 s per decision. Open-ended rubric questions (clutter,
+  legibility) draw the longest reasoning; ImajevBench items take ~15 s each on the Mac.

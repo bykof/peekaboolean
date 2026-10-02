@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="518" viewBox="0 0 760 518" font-family="system-ui,-apple-system,Segoe UI,sans-serif">
+<rect width="760" height="518" fill="#fcfcfb" rx="8"/>
+<text x="20" y="28" font-size="16" font-weight="600" fill="#0b0b0b">Held-out test split of v0.4.0, 512 px (higher is better)</text>
+<rect x="20" y="42" width="12" height="12" rx="3" fill="#2a78d6"/>
+<text x="38" y="52" font-size="12" fill="#52514e">v0.4.0 (v11), this release</text>
+<rect x="228" y="42" width="12" height="12" rx="3" fill="#eb6834"/>
+<text x="246" y="52" font-size="12" fill="#52514e">v0.3.0 (v10b)</text>
+<line x1="220.0" x2="220.0" y1="64" y2="484" stroke="#e1e0d9" stroke-width="1"/>
+<text x="220.0" y="500" font-size="11" fill="#898781" text-anchor="middle">0</text>
+<line x1="340.0" x2="340.0" y1="64" y2="484" stroke="#e1e0d9" stroke-width="1"/>
+<text x="340.0" y="500" font-size="11" fill="#898781" text-anchor="middle">0.25</text>
+<line x1="460.0" x2="460.0" y1="64" y2="484" stroke="#e1e0d9" stroke-width="1"/>
+<text x="460.0" y="500" font-size="11" fill="#898781" text-anchor="middle">0.5</text>
+<line x1="580.0" x2="580.0" y1="64" y2="484" stroke="#e1e0d9" stroke-width="1"/>
+<text x="580.0" y="500" font-size="11" fill="#898781" text-anchor="middle">0.75</text>
+<line x1="700.0" x2="700.0" y1="64" y2="484" stroke="#e1e0d9" stroke-width="1"/>
+<text x="700.0" y="500" font-size="11" fill="#898781" text-anchor="middle">1</text>
+<text x="208" y="81" font-size="12.5" fill="#0b0b0b" text-anchor="end">Teacher-written choice</text>
+<text x="208" y="96" font-size="11" fill="#898781" text-anchor="end">accuracy</text>
+<g><title>Teacher-written choice (accuracy), v0.4.0 (v11), this release: 0.866</title><path d="M220,70 H631.8 A4,4 0 0 1 635.8,74 V76 A4,4 0 0 1 631.8,80 H220 Z" fill="#2a78d6"/></g>
+<g><title>Teacher-written choice (accuracy), v0.3.0 (v10b): 0.855</title><path d="M220,82 H626.5 A4,4 0 0 1 630.5,86 V88 A4,4 0 0 1 626.5,92 H220 Z" fill="#eb6834"/></g>
+<text x="641.8" y="79" font-size="11.5" font-weight="600" fill="#0b0b0b">0.87</text>
+<text x="208" y="123" font-size="12.5" fill="#0b0b0b" text-anchor="end">Teacher-written yes/no</text>
+<text x="208" y="138" font-size="11" fill="#898781" text-anchor="end">balanced accuracy</text>
+<g><title>Teacher-written yes/no (balanced accuracy), v0.4.0 (v11), this release: 0.906</title><path d="M220,112 H650.8 A4,4 0 0 1 654.8,116 V118 A4,4 0 0 1 650.8,122 H220 Z" fill="#2a78d6"/></g>
+<g><title>Teacher-written yes/no (balanced accuracy), v0.3.0 (v10b): 0.904</title><path d="M220,124 H650.1 A4,4 0 0 1 654.1,128 V130 A4,4 0 0 1 650.1,134 H220 Z" fill="#eb6834"/></g>
+<text x="660.8" y="121" font-size="11.5" font-weight="600" fill="#0b0b0b">0.91</text>
+<text x="208" y="165" font-size="12.5" fill="#0b0b0b" text-anchor="end">Teacher-written score</text>
+<text x="208" y="180" font-size="11" fill="#898781" text-anchor="end">Spearman</text>
+<g><title>Teacher-written score (Spearman), v0.4.0 (v11), this release: 0.853</title><path d="M220,154 H625.5 A4,4 0 0 1 629.5,158 V160 A4,4 0 0 1 625.5,164 H220 Z" fill="#2a78d6"/></g>
+<g><title>Teacher-written score (Spearman), v0.3.0 (v10b): 0.843</title><path d="M220,166 H620.9 A4,4 0 0 1 624.9,170 V172 A4,4 0 0 1 620.9,176 H220 Z" fill="#eb6834"/></g>
+<text x="635.5" y="163" font-size="11.5" font-weight="600" fill="#0b0b0b">0.85</text>
+<text x="208" y="207" font-size="12.5" fill="#0b0b0b" text-anchor="end">VQAv2 yes/no</text>
+<text x="208" y="222" font-size="11" fill="#898781" text-anchor="end">balanced accuracy</text>
+<g><title>VQAv2 yes/no (balanced accuracy), v0.4.0 (v11), this release: 0.818</title><path d="M220,196 H608.6 A4,4 0 0 1 612.6,200 V202 A4,4 0 0 1 608.6,206 H220 Z" fill="#2a78d6"/></g>
+<g><title>VQAv2 yes/no (balanced accuracy), v0.3.0 (v10b): 0.810</title><path d="M220,208 H604.6 A4,4 0 0 1 608.6,212 V214 A4,4 0 0 1 604.6,218 H220 Z" fill="#eb6834"/></g>
+<text x="618.6" y="205" font-size="11.5" font-weight="600" fill="#0b0b0b">0.82</text>
+<text x="208" y="249" font-size="12.5" fill="#0b0b0b" text-anchor="end">DocVQA choice</text>
+<text x="208" y="264" font-size="11" fill="#898781" text-anchor="end">accuracy</text>
+<g><title>DocVQA choice (accuracy), v0.4.0 (v11), this release: 0.938</title><path d="M220,238 H666.0 A4,4 0 0 1 670.0,242 V244 A4,4 0 0 1 666.0,248 H220 Z" fill="#2a78d6"/></g>
+<g><title>DocVQA choice (accuracy), v0.3.0 (v10b): 0.941</title><path d="M220,250 H667.6 A4,4 0 0 1 671.6,254 V256 A4,4 0 0 1 667.6,260 H220 Z" fill="#eb6834"/></g>
+<text x="676.0" y="247" font-size="11.5" font-weight="600" fill="#0b0b0b">0.94</text>
+<text x="208" y="291" font-size="12.5" fill="#0b0b0b" text-anchor="end">ChartQA choice</text>
+<text x="208" y="306" font-size="11" fill="#898781" text-anchor="end">accuracy</text>
+<g><title>ChartQA choice (accuracy), v0.4.0 (v11), this release: 0.917</title><path d="M220,280 H656.2 A4,4 0 0 1 660.2,284 V286 A4,4 0 0 1 656.2,290 H220 Z" fill="#2a78d6"/></g>
+<g><title>ChartQA choice (accuracy), v0.3.0 (v10b): 0.904</title><path d="M220,292 H649.8 A4,4 0 0 1 653.8,296 V298 A4,4 0 0 1 649.8,302 H220 Z" fill="#eb6834"/></g>
+<text x="666.2" y="289" font-size="11.5" font-weight="600" fill="#0b0b0b">0.92</text>
+<text x="208" y="333" font-size="12.5" fill="#0b0b0b" text-anchor="end">AI2D choice</text>
+<text x="208" y="348" font-size="11" fill="#898781" text-anchor="end">accuracy</text>
+<g><title>AI2D choice (accuracy), v0.4.0 (v11), this release: 0.846</title><path d="M220,322 H622.0 A4,4 0 0 1 626.0,326 V328 A4,4 0 0 1 622.0,332 H220 Z" fill="#2a78d6"/></g>
+<g><title>AI2D choice (accuracy), v0.3.0 (v10b): 0.854</title><path d="M220,334 H625.8 A4,4 0 0 1 629.8,338 V340 A4,4 0 0 1 625.8,344 H220 Z" fill="#eb6834"/></g>
+<text x="632.0" y="331" font-size="11.5" font-weight="600" fill="#0b0b0b">0.85</text>
+<text x="208" y="375" font-size="12.5" fill="#0b0b0b" text-anchor="end">CLEVR choice</text>
+<text x="208" y="390" font-size="11" fill="#898781" text-anchor="end">accuracy</text>
+<g><title>CLEVR choice (accuracy), v0.4.0 (v11), this release: 0.924</title><path d="M220,364 H659.4 A4,4 0 0 1 663.4,368 V370 A4,4 0 0 1 659.4,374 H220 Z" fill="#2a78d6"/></g>
+<g><title>CLEVR choice (accuracy), v0.3.0 (v10b): 0.932</title><path d="M220,376 H663.4 A4,4 0 0 1 667.4,380 V382 A4,4 0 0 1 663.4,386 H220 Z" fill="#eb6834"/></g>
+<text x="669.4" y="373" font-size="11.5" font-weight="600" fill="#0b0b0b">0.92</text>
+<text x="208" y="417" font-size="12.5" fill="#0b0b0b" text-anchor="end">CLEVR counting rubric</text>
+<text x="208" y="432" font-size="11" fill="#898781" text-anchor="end">Spearman</text>
+<g><title>CLEVR counting rubric (Spearman), v0.4.0 (v11), this release: 0.927</title><path d="M220,406 H661.2 A4,4 0 0 1 665.2,410 V412 A4,4 0 0 1 661.2,416 H220 Z" fill="#2a78d6"/></g>
+<g><title>CLEVR counting rubric (Spearman), v0.3.0 (v10b): 0.925</title><path d="M220,418 H660.2 A4,4 0 0 1 664.2,422 V424 A4,4 0 0 1 660.2,428 H220 Z" fill="#eb6834"/></g>
+<text x="671.2" y="415" font-size="11.5" font-weight="600" fill="#0b0b0b">0.93</text>
+<text x="208" y="459" font-size="12.5" fill="#0b0b0b" text-anchor="end">FairFace age</text>
+<text x="208" y="474" font-size="11" fill="#898781" text-anchor="end">Spearman</text>
+<g><title>FairFace age (Spearman), v0.4.0 (v11), this release: 0.850</title><path d="M220,448 H624.1 A4,4 0 0 1 628.1,452 V454 A4,4 0 0 1 624.1,458 H220 Z" fill="#2a78d6"/></g>
+<g><title>FairFace age (Spearman), v0.3.0 (v10b): 0.858</title><path d="M220,460 H627.9 A4,4 0 0 1 631.9,464 V466 A4,4 0 0 1 627.9,470 H220 Z" fill="#eb6834"/></g>
+<text x="634.1" y="457" font-size="11.5" font-weight="600" fill="#0b0b0b">0.85</text>
+<line x1="220" x2="220" y1="64" y2="484" stroke="#c3c2b7" stroke-width="1"/>
+</svg>
